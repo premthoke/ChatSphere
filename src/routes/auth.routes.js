@@ -1,0 +1,73 @@
+/**
+ * src/routes/auth.routes.js — Authentication Routes
+ *
+ * POST /api/auth/register  — Register a new user
+ * POST /api/auth/login     — Login with email + password
+ * GET  /api/auth/me        — Get authenticated user profile
+ * POST /api/auth/logout    — Logout (mark offline)
+ */
+
+const express = require("express");
+const { body } = require("express-validator");
+const { register, login, getMe, logout } = require("../controllers/auth.controller");
+const { protect } = require("../middleware/auth.middleware");
+const validate = require("../middleware/validate.middleware");
+
+const router = express.Router();
+
+// ── Validation Rules ──────────────────────────────────────────────────────────
+
+const registerRules = [
+  body("username")
+    .trim()
+    .notEmpty().withMessage("Username is required.")
+    .isLength({ min: 3, max: 30 }).withMessage("Username must be 3–30 characters.")
+    .matches(/^[a-zA-Z0-9_]+$/).withMessage("Username can only contain letters, numbers, and underscores."),
+
+  body("email")
+    .trim()
+    .notEmpty().withMessage("Email is required.")
+    .isEmail().withMessage("Please provide a valid email.")
+    .normalizeEmail(),
+
+  body("password")
+    .notEmpty().withMessage("Password is required.")
+    .isLength({ min: 8 }).withMessage("Password must be at least 8 characters.")
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage("Password must contain at least one uppercase letter, one lowercase letter, and one number."),
+];
+
+const loginRules = [
+  body("email")
+    .trim()
+    .notEmpty().withMessage("Email is required.")
+    .isEmail().withMessage("Please provide a valid email.")
+    .normalizeEmail(),
+
+  body("password")
+    .notEmpty().withMessage("Password is required."),
+];
+
+// ── Routes ────────────────────────────────────────────────────────────────────
+
+// @route   POST /api/auth/register
+// @desc    Register new user
+// @access  Public
+router.post("/register", registerRules, validate, register);
+
+// @route   POST /api/auth/login
+// @desc    Login user, returns JWT
+// @access  Public
+router.post("/login", loginRules, validate, login);
+
+// @route   GET /api/auth/me
+// @desc    Get currently authenticated user
+// @access  Private
+router.get("/me", protect, getMe);
+
+// @route   POST /api/auth/logout
+// @desc    Logout current user
+// @access  Private
+router.post("/logout", protect, logout);
+
+module.exports = router;

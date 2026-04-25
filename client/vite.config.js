@@ -16,6 +16,10 @@ export default defineConfig({
         changeOrigin: true,
         ws: true, // forward WebSocket upgrades
       },
+      "/uploads": {
+        target: "http://localhost:5000",
+        changeOrigin: true,
+      },
     },
   },
 });

@@ -42,6 +42,7 @@ export const SocketProvider = ({ children }) => {
   // re-render whenever the connection is established or torn down.
   const [socket, setSocket]       = useState(null);
   const [connected, setConnected] = useState(false);
+  const [onlineStatus, setOnlineStatus] = useState({});
 
   useEffect(() => {
     // Only connect when we have a valid auth token
@@ -75,6 +76,20 @@ export const SocketProvider = ({ children }) => {
       setConnected(false);
     });
 
+    sock.on("userOnline", ({ userId }) => {
+      setOnlineStatus((prev) => ({
+        ...prev,
+        [userId]: { isOnline: true },
+      }));
+    });
+
+    sock.on("userOffline", ({ userId, lastSeen }) => {
+      setOnlineStatus((prev) => ({
+        ...prev,
+        [userId]: { isOnline: false, lastSeen },
+      }));
+    });
+
     // Cleanup: disconnect when token changes or component unmounts
     return () => {
       sock.disconnect();
@@ -85,7 +100,7 @@ export const SocketProvider = ({ children }) => {
   }, [token]);
 
   return (
-    <SocketContext.Provider value={{ socket, connected }}>
+    <SocketContext.Provider value={{ socket, connected, onlineStatus }}>
       {children}
     </SocketContext.Provider>
   );

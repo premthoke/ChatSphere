@@ -1,7 +1,7 @@
 /**
  * src/pages/LoginPage.jsx
  */
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -16,14 +16,20 @@ const LoginPage = () => {
   const handleChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
+  const isSubmitting = useRef(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting.current) return;
+    isSubmitting.current = true;
+
     setError("");
     setLoading(true);
 
     const { success, error: msg } = await login(form.email, form.password);
 
     setLoading(false);
+    isSubmitting.current = false;
     if (success) navigate("/chat");
     else setError(msg);
   };

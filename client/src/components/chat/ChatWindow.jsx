@@ -8,6 +8,8 @@ import MessageBubble from "./MessageBubble";
 import MessageInput  from "./MessageInput";
 import Avatar        from "../common/Avatar";
 import Spinner       from "../common/Spinner";
+import ProfileModal  from "../profile/ProfileModal";
+import { useState }  from "react";
 import { groupMessagesByDate } from "../../utils/helpers";
 
 const TypingIndicator = () => (
@@ -22,6 +24,7 @@ const TypingIndicator = () => (
 const ChatWindow = ({ selectedUser, chat }) => {
   const { messages, loadingMsgs, sendingMsg, isTyping, error, send, emitTyping } = chat;
   const bottomRef = useRef(null);
+  const [showProfile, setShowProfile] = useState(false);
 
   // Auto-scroll to latest message whenever the list or typing state changes
   useEffect(() => {
@@ -46,15 +49,33 @@ const ChatWindow = ({ selectedUser, chat }) => {
   return (
     <div className="chat-window">
       {/* ── Header ── */}
-      <div className="chat-header">
+      <div 
+        className="chat-header" 
+        onClick={() => setShowProfile(true)}
+        style={{ cursor: "pointer", transition: "background 0.2s" }}
+        title="View Profile"
+      >
         <Avatar user={selectedUser} showOnline size={40} />
         <div className="chat-header-info">
           <div className="chat-header-name">{selectedUser.username}</div>
           <div className={`chat-header-status ${selectedUser.isOnline ? "online" : ""}`}>
-            {selectedUser.isOnline ? "● Online" : "Last seen recently"}
+            {selectedUser.isOnline 
+              ? "● Online" 
+              : selectedUser.lastSeen 
+                ? `Last seen at ${new Date(selectedUser.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` 
+                : "Offline"}
           </div>
         </div>
       </div>
+
+      {/* Conditional Profile View Modal */}
+      {showProfile && (
+        <ProfileModal 
+          user={selectedUser} 
+          isSelf={false} 
+          onClose={() => setShowProfile(false)} 
+        />
+      )}
 
       {/* ── Messages ── */}
       <div className="messages-area" id="messages-area">

@@ -22,6 +22,11 @@ export const getMessages = (userId, page = 1, limit = 50) =>
   api.get(`/messages/${userId}`, { params: { page, limit } });
 
 /**
+ * Get all active string conversations for the sidebar unread badges.
+ */
+export const getConversations = () => api.get(`/messages/conversations`);
+
+/**
  * Soft-delete a message (sender only).
  * @param {string} messageId
  */

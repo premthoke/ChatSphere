@@ -66,15 +66,21 @@ const getUserById = async (req, res, next) => {
  */
 const updateProfile = async (req, res, next) => {
   try {
-    const allowedFields = ["avatar", "bio"];
+    const allowedFields = ["bio"];
     const updates = {};
 
-    // Whitelist only allowed fields from the request body
+    // Whitelist only allowed text fields from the request body
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {
         updates[field] = req.body[field];
       }
     });
+
+    // Support Multer mapped physical local files natively!
+    if (req.file) {
+      // Map it as a reliable URL pointing towards your local Express static files middleware
+      updates.avatar = `/uploads/${req.file.filename}`;
+    }
 
     if (Object.keys(updates).length === 0) {
       return next(createError(400, "No valid fields provided to update."));

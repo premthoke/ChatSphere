@@ -6,9 +6,12 @@
 import { useState, useEffect, useCallback } from "react";
 import UserListItem from "./UserListItem";
 import Avatar       from "../common/Avatar";
+import ProfileModal from "../profile/ProfileModal";
 import { useAuth }  from "../../context/AuthContext";
 import useSocket from "../../context/useSocket";
-import { searchUsers } from "../../services/user.service";
+import { getConversations } from "../../services/message.service";
+import { searchUsers, updateProfile } from "../../services/user.service";
+import toast from "react-hot-toast";
 
 const LogoutIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -19,12 +22,52 @@ const LogoutIcon = () => (
 );
 
 const Sidebar = ({ selectedUser, onSelectUser }) => {
-  const { user, logout }   = useAuth();
-  const { connected }      = useSocket();
+  const { user, logout, updateUser }   = useAuth();
+  const { connected, onlineStatus, socket } = useSocket();
 
   const [query, setQuery]       = useState("");
   const [results, setResults]   = useState([]);
   const [searching, setSearching] = useState(false);
+  const [conversations, setConversations] = useState([]);
+  const [showOwnProfile, setShowOwnProfile] = useState(false);
+
+  const handleSaveProfile = async ({ file, bio }) => {
+    try {
+      const fd = new FormData();
+      if (file) fd.append("avatar", file);
+      if (bio !== undefined) fd.append("bio", bio);
+
+      const { data } = await updateProfile(fd);
+      updateUser(data.data);
+      setShowOwnProfile(false);
+      toast.success("Profile updated successfully!");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update profile.");
+    }
+  };
+
+  // Fetch initial conversations on mount
+  useEffect(() => {
+    getConversations()
+      .then(({ data }) => setConversations(data.data || []))
+      .catch(() => {});
+  }, []);
+
+  // Listen for socket bumps indicating an active thread changed
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleConvUpdate = (updatedConv) => {
+      setConversations((prev) => {
+        // filter out the old instance if it exists, push the new one to the very top chronologically
+        const filtered = prev.filter((c) => c._id !== updatedConv._id);
+        return [updatedConv, ...filtered];
+      });
+    };
+
+    socket.on("updateConversation", handleConvUpdate);
+    return () => socket.off("updateConversation", handleConvUpdate);
+  }, [socket]);
 
   // Debounced user search
   useEffect(() => {
@@ -96,29 +139,45 @@ const Sidebar = ({ selectedUser, onSelectUser }) => {
             {results.length === 0 && !searching && (
               <div className="sidebar-empty">No users found for "{query}"</div>
             )}
-            {results.map((u) => (
-              <UserListItem
-                key={u._id}
-                user={u}
-                isActive={selectedUser?._id === u._id}
-                onClick={() => handleSelect(u)}
-              />
-            ))}
+            {results.map((u) => {
+              const liveU = { ...u, ...(onlineStatus[u._id] || {}) };
+              return (
+                <UserListItem
+                  key={liveU._id}
+                  user={liveU}
+                  isActive={selectedUser?._id === liveU._id}
+                  onClick={() => handleSelect(u)}
+                />
+              );
+            })}
           </>
         ) : (
           <>
-            {selectedUser && (
+            {conversations.length > 0 ? (
               <>
-                <div className="sidebar-section-title">Active Chat</div>
-                <UserListItem
-                  key={selectedUser._id}
-                  user={selectedUser}
-                  isActive
-                  onClick={() => {}}
-                />
+                <div className="sidebar-section-title">Recent Chats</div>
+                {conversations.map((c) => {
+                  const currentUserId = user?._id || user?.id;
+                  // Ensure we get the correct participant's profile
+                  const otherUser = c.participants.find((p) => p._id !== currentUserId);
+                  if (!otherUser) return null;
+
+                  const liveU = { ...otherUser, ...(onlineStatus[otherUser._id] || {}) };
+                  const unreadCount = c.unreadCount?.[currentUserId] || 0;
+
+                  return (
+                    <UserListItem
+                      key={c._id}
+                      user={liveU}
+                      isActive={selectedUser?._id === liveU._id}
+                      lastMessage={c.lastMessage?.content}
+                      unreadCount={unreadCount}
+                      onClick={() => handleSelect(otherUser)}
+                    />
+                  );
+                })}
               </>
-            )}
-            {!selectedUser && (
+            ) : (
               <div className="sidebar-empty">
                 Search for a user above to start chatting.
               </div>
@@ -128,7 +187,12 @@ const Sidebar = ({ selectedUser, onSelectUser }) => {
       </div>
 
       {/* ── Current User Footer ── */}
-      <div className="sidebar-footer">
+      <div 
+        className="sidebar-footer" 
+        onClick={() => setShowOwnProfile(true)} 
+        style={{ cursor: "pointer", transition: "background 0.2s" }}
+        title="Edit Profile"
+      >
         <Avatar user={user} showOnline size={36} />
         <div className="sidebar-footer-info">
           <div className="sidebar-footer-name">{user?.username}</div>
@@ -137,13 +201,21 @@ const Sidebar = ({ selectedUser, onSelectUser }) => {
         <button
           id="logout-btn"
           className="logout-btn"
-          onClick={logout}
+          onClick={(e) => { e.stopPropagation(); logout(); }}
           title="Logout"
           aria-label="Logout"
         >
           <LogoutIcon />
         </button>
       </div>
+      {showOwnProfile && (
+        <ProfileModal
+          user={user}
+          isSelf={true}
+          onClose={() => setShowOwnProfile(false)}
+          onSave={handleSaveProfile}
+        />
+      )}
     </aside>
   );
 };

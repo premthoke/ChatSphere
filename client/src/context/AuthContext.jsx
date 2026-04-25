@@ -93,7 +93,16 @@ export const AuthProvider = ({ children }) => {
     toast("Logged out", { icon: "👋" });
   }, []);
 
-  const value = { user, token, loading, login, register, logout };
+  // ── Session Mutators ──────────────────────────────────────────────────────
+  const updateUser = useCallback((updatedProps) => {
+    setUser((prev) => {
+      const newUser = { ...prev, ...updatedProps };
+      sessionStorage.setItem(USER_KEY, JSON.stringify(newUser));
+      return newUser;
+    });
+  }, []);
+
+  const value = { user, token, loading, login, register, logout, updateUser };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

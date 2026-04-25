@@ -16,8 +16,11 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const logger = require("../utils/logger");
+const User = require("../models/user.model");
+const Message = require("../models/message.model");
 
 let io; // Singleton Socket.IO instance
+const userSocketMap = new Map(); // Tracks active sockets: Map<userId, Set<socketId>>
 
 /**
  * Attach Socket.IO to the HTTP server.
@@ -52,9 +55,25 @@ const initSocket = (server) => {
   });
 
   // ── Connection Handler ────────────────────────────────────────────────────
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     const userId = socket.user?.id;
     logger.info(`🔌 Socket connected: ${socket.id} (user: ${userId})`);
+
+    if (userId) {
+      socket.join(userId); // Join personal room for cross-tab global synchronization
+
+      if (!userSocketMap.has(userId)) {
+        userSocketMap.set(userId, new Set());
+        // First connection for this user
+        try {
+          await User.findByIdAndUpdate(userId, { isOnline: true });
+          io.emit("userOnline", { userId });
+        } catch (err) {
+          logger.error(`Error updating online status for ${userId}: ${err.message}`);
+        }
+      }
+      userSocketMap.get(userId).add(socket.id);
+    }
 
     /**
      * join_room — Client joins a unique chat room.
@@ -68,11 +87,17 @@ const initSocket = (server) => {
 
     /**
      * send_message — Broadcast a new message to everyone else in the room.
-     * The REST API handles persistence; this only handles real-time delivery.
      */
-    socket.on("send_message", ({ roomId, message }) => {
+    socket.on("send_message", ({ roomId, message, conversation }) => {
       // Emit to all OTHER clients in the room (not the sender)
       socket.to(roomId).emit("receive_message", message);
+      // Emit the conversation update to BOTH users seamlessly across all open tabs
+      if (conversation) {
+        conversation.participants.forEach(p => {
+          const pStr = p._id ? p._id.toString() : p.toString();
+          io.to(pStr).emit("updateConversation", conversation);
+        });
+      }
     });
 
     /**
@@ -89,9 +114,56 @@ const initSocket = (server) => {
       socket.to(roomId).emit("user_stopped_typing", { userId });
     });
 
+    /**
+     * mark_read — Update read receipts for messages sent by the other user.
+     */
+    socket.on("mark_read", async ({ roomId, selectedUserId }) => {
+      try {
+        await Message.updateMany(
+          { roomId, sender: selectedUserId, receiver: userId, isRead: false },
+          { isRead: true, readAt: new Date() }
+        );
+        
+        // Safely wipe the bubble notification counter when inside the chat natively
+        const Conversation = require("../models/conversation.model");
+        const conversation = await Conversation.findOne({ roomId });
+        if (conversation) {
+          conversation.unreadCount.set(userId.toString(), 0);
+          await conversation.save();
+          // Inform both parties the conversation object updated its stats globally
+          conversation.participants.forEach(p => {
+            const pStr = p._id ? p._id.toString() : p.toString();
+            io.to(pStr).emit("updateConversation", conversation);
+          });
+        }
+
+        // Emit to the room that messages were read
+        io.to(roomId).emit("messages_read", { readerId: userId, roomId });
+      } catch (err) {
+        logger.error(`Error marking messages read for room ${roomId}: ${err.message}`);
+      }
+    });
+
     // ── Disconnect ───────────────────────────────────────────────────────────
-    socket.on("disconnect", (reason) => {
+    socket.on("disconnect", async (reason) => {
       logger.info(`🔌 Socket disconnected: ${socket.id} — reason: ${reason}`);
+
+      if (userId && userSocketMap.has(userId)) {
+        const userSockets = userSocketMap.get(userId);
+        userSockets.delete(socket.id);
+
+        if (userSockets.size === 0) {
+          // No more active sockets
+          userSocketMap.delete(userId);
+          const lastSeen = new Date();
+          try {
+            await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen });
+            io.emit("userOffline", { userId, lastSeen });
+          } catch (err) {
+            logger.error(`Error updating offline status for ${userId}: ${err.message}`);
+          }
+        }
+      }
     });
   });
 

@@ -63,9 +63,11 @@ const useChat = (selectedUser) => {
     ? [user._id, selectedUser._id].sort().join("_")
     : null;
 
+  const selectedUserId = selectedUser?._id;
+
   // ── Fetch Message History ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!selectedUser) {
+    if (!selectedUserId) {
       setMessages([]);
       seenIdsRef.current.clear();
       return;
@@ -74,7 +76,7 @@ const useChat = (selectedUser) => {
     setLoadingMsgs(true);
     setError(null);
 
-    getMessages(selectedUser._id)
+    getMessages(selectedUserId)
       .then(({ data }) => {
         const fetched = data.data.messages;
 
@@ -85,7 +87,7 @@ const useChat = (selectedUser) => {
       })
       .catch(() => setError("Failed to load messages."))
       .finally(() => setLoadingMsgs(false));
-  }, [selectedUser]); // Re-fetch whenever the selected conversation changes
+  }, [selectedUserId]); // Re-fetch exactly only when the selected conversation ID changes
 
   // ── Socket Room & Event Subscriptions ─────────────────────────────────────
   useEffect(() => {
@@ -115,9 +117,24 @@ const useChat = (selectedUser) => {
     const handleTyping      = () => setIsTyping(true);
     const handleStopTyping  = () => setIsTyping(false);
 
+    // ── messages_read ────────────────────────────────────────────────────
+    const handleMessagesRead = ({ readerId }) => {
+      // If the other user read them, our sent messages are now read
+      if (readerId !== user._id) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            (msg.sender === user._id || msg.sender?._id === user._id)
+              ? { ...msg, isRead: true }
+              : msg
+          )
+        );
+      }
+    };
+
     socket.on("receive_message",      handleReceive);
     socket.on("user_typing",          handleTyping);
     socket.on("user_stopped_typing",  handleStopTyping);
+    socket.on("messages_read",        handleMessagesRead);
 
     // FIX D: Cleanup removes the exact function references registered above.
     // Without this, changing conversations or re-connecting leaves stale
@@ -126,8 +143,32 @@ const useChat = (selectedUser) => {
       socket.off("receive_message",      handleReceive);
       socket.off("user_typing",          handleTyping);
       socket.off("user_stopped_typing",  handleStopTyping);
+      socket.off("messages_read",        handleMessagesRead);
     };
   }, [socket, roomId]); // Re-subscribe when socket or room changes
+
+  // ── Emit Read Receipts ─────────────────────────────────────────────────────
+  // Automatically mark the other user's incoming messages as read when viewing
+  useEffect(() => {
+    if (!socket || !roomId || !selectedUser || !messages.length) return;
+
+    const unreadFromOther = messages.some(
+      (m) => !m.isRead && (m.sender === selectedUser._id || m.sender?._id === selectedUser._id)
+    );
+
+    if (unreadFromOther) {
+      socket.emit("mark_read", { roomId, selectedUserId: selectedUser._id });
+
+      // Optimistically update our own UI so we don't spam emit
+      setMessages((prev) =>
+        prev.map((msg) =>
+          (msg.sender === selectedUser._id || msg.sender?._id === selectedUser._id)
+            ? { ...msg, isRead: true }
+            : msg
+        )
+      );
+    }
+  }, [messages, selectedUser, socket, roomId]);
 
   // ── Send Message ───────────────────────────────────────────────────────────
   const send = useCallback(async (content) => {

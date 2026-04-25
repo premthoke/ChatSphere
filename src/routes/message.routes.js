@@ -8,7 +8,7 @@
 
 const express = require("express");
 const { body, param, query } = require("express-validator");
-const { sendMessage, getMessages, deleteMessage } = require("../controllers/message.controller");
+const { sendMessage, getMessages, deleteMessage, getConversations } = require("../controllers/message.controller");
 const { protect } = require("../middleware/auth.middleware");
 const validate = require("../middleware/validate.middleware");
 
@@ -53,6 +53,11 @@ const getMessagesRules = [
 // @desc    Send a message to another user
 // @access  Private
 router.post("/", sendMessageRules, validate, sendMessage);
+
+// @route   GET /api/messages/conversations
+// @desc    Get all recent active conversations mapped to unread badges
+// @access  Private
+router.get("/conversations", getConversations);
 
 // @route   GET /api/messages/:userId
 // @desc    Get paginated message history with a specific user

@@ -60,6 +60,10 @@ app.get("/api/health", (_req, res) => {
   res.json({ success: true, message: "ChatSphere API is healthy ✅", timestamp: new Date() });
 });
 
+// ── Static Files (Multer Uploads) ─────────────────────────────────────────────
+const path = require("path");
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+
 // ── API Routes ────────────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
 app.use("/api/messages", messageRoutes);

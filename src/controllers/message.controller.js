@@ -7,6 +7,7 @@
  */
 
 const Message = require("../models/message.model");
+const Conversation = require("../models/conversation.model");
 const User = require("../models/user.model");
 const { createError } = require("../utils/apiError");
 
@@ -44,14 +45,39 @@ const sendMessage = async (req, res, next) => {
       type,
     });
 
+    // Find or create conversation explicitly preventing duplicates
+    let conversation = await Conversation.findOne({ roomId });
+    if (!conversation) {
+      conversation = new Conversation({
+        roomId,
+        participants: [senderId, receiverId],
+        unreadCount: new Map([
+          [senderId.toString(), 0],
+          [receiverId.toString(), 1]
+        ]),
+        lastMessage: message._id
+      });
+    } else {
+      conversation.lastMessage = message._id;
+      // Increment unread count for receiver ONLY
+      const currentUnread = conversation.unreadCount.get(receiverId.toString()) || 0;
+      conversation.unreadCount.set(receiverId.toString(), currentUnread + 1);
+    }
+    await conversation.save();
+
     // Populate sender details for the response / socket payload
     await message.populate("sender", "username avatar");
     await message.populate("receiver", "username avatar");
+
+    // Populate conversation details so the socket can broadcast it accurately
+    await conversation.populate("participants", "username avatar isOnline");
+    await conversation.populate("lastMessage");
 
     res.status(201).json({
       success: true,
       message: "Message sent.",
       data: message,
+      conversation // Inject into response so Socket.IO logic can pass it identically!
     });
   } catch (err) {
     next(err);
@@ -99,6 +125,13 @@ const getMessages = async (req, res, next) => {
       { roomId, receiver: currentUserId, isRead: false },
       { isRead: true, readAt: new Date() }
     );
+
+    // Zero out conversation unread bubble for the fetching user
+    const conversation = await Conversation.findOne({ roomId });
+    if (conversation) {
+      conversation.unreadCount.set(currentUserId.toString(), 0);
+      await conversation.save();
+    }
 
     res.status(200).json({
       success: true,
@@ -148,4 +181,26 @@ const deleteMessage = async (req, res, next) => {
   }
 };
 
-module.exports = { sendMessage, getMessages, deleteMessage };
+// ── Get User's Active Conversations ──────────────────────────────────────────
+/**
+ * GET /api/messages/conversations
+ * Requires: protect middleware
+ */
+const getConversations = async (req, res, next) => {
+  try {
+    const currentUserId = req.user._id;
+    const conversations = await Conversation.find({ participants: currentUserId })
+      .populate("participants", "username avatar isOnline email")
+      .populate("lastMessage")
+      .sort({ updatedAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: conversations,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { sendMessage, getMessages, deleteMessage, getConversations };

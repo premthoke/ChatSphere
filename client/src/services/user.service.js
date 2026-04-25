@@ -18,6 +18,10 @@ export const getUserById = (userId) => api.get(`/users/${userId}`);
 
 /**
  * Update the current user's profile.
- * @param {{ avatar?: string, bio?: string }} data
+ * @param {Object|FormData} data 
  */
-export const updateProfile = (data) => api.put("/users/profile", data);
+export const updateProfile = (data) => {
+  const isForm = data instanceof FormData;
+  const config = isForm ? { headers: { "Content-Type": "multipart/form-data" } } : {};
+  return api.put("/users/profile", data, config);
+};

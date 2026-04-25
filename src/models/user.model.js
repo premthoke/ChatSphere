@@ -77,9 +77,8 @@ const userSchema = new mongoose.Schema(
 );
 
 // ── Indexes ───────────────────────────────────────────────────────────────────
-// Compound index for searching users by username or email efficiently
-userSchema.index({ username: 1 });
-userSchema.index({ email: 1 });
+// Unique fields (username, email) automatically get indexed by Mongoose.
+
 
 // ── Pre-save Hook: Hash Password ──────────────────────────────────────────────
 userSchema.pre("save", async function (next) {

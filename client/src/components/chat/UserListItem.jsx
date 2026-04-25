@@ -5,7 +5,7 @@
 import Avatar from "../common/Avatar";
 import { truncate } from "../../utils/helpers";
 
-const UserListItem = ({ user, isActive, lastMessage, onClick }) => (
+const UserListItem = ({ user, isActive, lastMessage, unreadCount, onClick }) => (
   <div
     className={`user-item ${isActive ? "active" : ""}`}
     onClick={onClick}
@@ -17,7 +17,22 @@ const UserListItem = ({ user, isActive, lastMessage, onClick }) => (
     <Avatar user={user} showOnline />
 
     <div className="user-item-info">
-      <div className="user-item-name">{user.username}</div>
+      <div className="user-item-name">
+        {user.username}
+        {unreadCount > 0 && (
+          <span style={{ 
+            background: "#ef4444", 
+            color: "white", 
+            borderRadius: "50%", 
+            padding: "2px 6px", 
+            fontSize: "10px", 
+            marginLeft: "8px",
+            fontWeight: "bold"
+          }}>
+            {unreadCount}
+          </span>
+        )}
+      </div>
       <div className="user-item-preview">
         {lastMessage
           ? truncate(lastMessage)

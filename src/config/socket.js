@@ -85,20 +85,7 @@ const initSocket = (server) => {
       logger.info(`User ${userId} joined room: ${roomId}`);
     });
 
-    /**
-     * send_message — Broadcast a new message to everyone else in the room.
-     */
-    socket.on("send_message", ({ roomId, message, conversation }) => {
-      // Emit to all OTHER clients in the room (not the sender)
-      socket.to(roomId).emit("receive_message", message);
-      // Emit the conversation update to BOTH users seamlessly across all open tabs
-      if (conversation) {
-        conversation.participants.forEach(p => {
-          const pStr = p._id ? p._id.toString() : p.toString();
-          io.to(pStr).emit("updateConversation", conversation);
-        });
-      }
-    });
+    // Note: send_message socket listener removed. Message emission is now handled securely in message.controller.js.
 
     /**
      * typing — Broadcast typing indicator to room participants.
@@ -131,10 +118,7 @@ const initSocket = (server) => {
           conversation.unreadCount.set(userId.toString(), 0);
           await conversation.save();
           // Inform both parties the conversation object updated its stats globally
-          conversation.participants.forEach(p => {
-            const pStr = p._id ? p._id.toString() : p.toString();
-            io.to(pStr).emit("updateConversation", conversation);
-          });
+          io.to(roomId).emit("conversationUpdated", conversation);
         }
 
         // Emit to the room that messages were read

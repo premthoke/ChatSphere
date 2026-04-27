@@ -1,0 +1,85 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>ChatSphere Project Report</title>
+<style>
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 40px; }
+  h1 { color: #4f46e5; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; font-size: 28px; }
+  h2 { color: #111827; margin-top: 30px; font-size: 22px; }
+  h3 { color: #374151; font-size: 18px; }
+  ul { margin-bottom: 20px; }
+  li { margin-bottom: 8px; }
+  .badge { background: #e0e7ff; color: #3730a3; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>ChatSphere - Project Working Report</h1>
+<p><strong>Date:</strong> April 27, 2026<br>
+<strong>Developer:</strong> Prem Thoke<br>
+<strong>Status:</strong> Production-Ready</p>
+
+<h2>1. Project Overview</h2>
+<p>ChatSphere is a modern, production-level real-time chat application designed to provide seamless communication. Inspired by platforms like WhatsApp and Discord, it features an ultra-modern <em>Glassmorphism</em> Dark Theme UI, robust real-time synchronization, and a fully functional rich-media file sharing system.</p>
+
+<h2>2. Core Technology Stack</h2>
+<ul>
+  <li><strong>Frontend:</strong> React.js (Vite), Custom CSS (CSS Variables, Glassmorphism design system)</li>
+  <li><strong>Backend:</strong> Node.js, Express.js</li>
+  <li><strong>Database:</strong> MongoDB (Mongoose ODM)</li>
+  <li><strong>Real-time Engine:</strong> Socket.IO</li>
+  <li><strong>Authentication:</strong> JSON Web Tokens (JWT), bcryptjs</li>
+  <li><strong>File Management:</strong> Multer (Local Disk Storage)</li>
+</ul>
+
+<h2>3. Key Features & Functionality</h2>
+
+<h3>Real-Time Messaging</h3>
+<ul>
+  <li>Instant message delivery utilizing bi-directional Socket.IO connections.</li>
+  <li><strong>Typing Indicators:</strong> Live "User is typing..." animations synced across clients.</li>
+  <li><strong>Read Receipts:</strong> WhatsApp-style single tick (✓) for delivered and double tick (✓✓) for read messages. Real-time updates push automatically when the recipient opens the chat.</li>
+</ul>
+
+<h3>Media & File Sharing System</h3>
+<ul>
+  <li><strong>Smart Attachments:</strong> Users can securely attach files via a responsive UI that includes a pre-upload preview bar.</li>
+  <li><strong>Images:</strong> Native inline rendering for image uploads with integrated download overlays. Limited strictly to <span class="badge">Max 3MB</span> (JPG, PNG, WEBP).</li>
+  <li><strong>Documents:</strong> Dedicated interactive file cards for document downloads. Limited to <span class="badge">Max 5MB</span> (PDF, DOC, DOCX, TXT, ZIP).</li>
+  <li><strong>Security:</strong> Server-side middleware completely blocks video uploads and enforces file size limitations dynamically.</li>
+</ul>
+
+<h3>User Profiles & Conversations</h3>
+<ul>
+  <li><strong>Dynamic Conversations:</strong> The sidebar intelligently lists recent conversations, sorted by the latest activity, completely replacing the need to manually search for previous contacts.</li>
+  <li><strong>Profile Management:</strong> Users can upload an avatar image and configure a personal bio. These are reflected globally across all active clients in real-time.</li>
+  <li><strong>Online Status:</strong> Live presence tracking showing exactly who is currently online or their last seen timestamp.</li>
+</ul>
+
+<h3>Modern User Interface</h3>
+<ul>
+  <li><strong>Glassmorphism Theme:</strong> High-end aesthetic using deep background gradients and frosted-glass transluscent panels.</li>
+  <li><strong>Responsive Design:</strong> The chat interface elegantly adapts to mobile devices, featuring a sliding hamburger menu for the sidebar.</li>
+  <li><strong>Performance:</strong> Aggressive API de-duplication, React hooks optimization, and strict memory leak prevention ensuring smooth scrolling and transitions.</li>
+</ul>
+
+<h2>4. Security & Optimization</h2>
+<ul>
+  <li><strong>Authentication:</strong> Secure HTTP-only cookies and Bearer tokens protect API routes.</li>
+  <li><strong>Input Validation:</strong> Comprehensive sanitization using <code>express-validator</code> to prevent injection attacks and ensure data integrity.</li>
+  <li><strong>Optimistic UI Updates:</strong> Messages appear instantly on the sender's screen before the server confirms, creating a zero-latency UX feel while background deduplication logic prevents ghost messages.</li>
+</ul>
+
+<h2>5. Setup & Execution</h2>
+<p>To run the project locally in a development environment:</p>
+<ol>
+  <li>Navigate to the root directory <code>/ChatSphere</code> and start the backend server: <code>npm run dev</code> (Runs Nodemon on port 5000).</li>
+  <li>Navigate to the frontend directory <code>/client</code> and start the Vite server: <code>npm run dev</code> (Runs on port 3000).</li>
+  <li>Open a modern web browser and navigate to <code>http://localhost:3000</code>.</li>
+</ol>
+
+<hr>
+<p style="text-align: center; color: #6b7280; font-size: 14px;"><em>Report generated automatically for the ChatSphere application.</em></p>
+
+</body>
+</html>

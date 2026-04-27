@@ -45,15 +45,29 @@ const messageSchema = new mongoose.Schema(
 
     content: {
       type: String,
-      required: [true, "Message content is required"],
       trim: true,
       maxlength: [2000, "Message cannot exceed 2000 characters"],
+      required: function() {
+        // Content is only required if it's a text message and there's no file.
+        // If type is 'image' or 'file', content can be optional.
+        return this.type === 'text' && !this.fileUrl;
+      }
     },
 
     type: {
       type: String,
       enum: MESSAGE_TYPES,
       default: "text",
+    },
+
+    fileUrl: {
+      type: String,
+      default: null,
+    },
+
+    fileName: {
+      type: String,
+      default: null,
     },
 
     // ── Status ───────────────────────────────────────────────────────────────

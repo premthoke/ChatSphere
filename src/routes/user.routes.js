@@ -34,14 +34,14 @@ router.get(
   searchUsers
 );
 
-const upload = require("../middleware/upload.middleware");
+const { uploadAvatar } = require("../middleware/upload.middleware");
 
 // @route   PUT /api/users/profile
 // @desc    Update current user's profile (avatar / bio)
 // @access  Private
 router.put(
   "/profile",
-  upload.single("avatar"),
+  uploadAvatar.single("avatar"),
   [
     body("bio").optional().isLength({ max: 150 }).withMessage("Bio cannot exceed 150 characters."),
   ],

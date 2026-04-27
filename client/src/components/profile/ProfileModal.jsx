@@ -11,6 +11,7 @@ const ProfileModal = ({ user, isSelf, onClose, onSave }) => {
   const [bio, setBio] = useState(user?.bio || "");
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [file, setFile] = useState(null);
+  const [removeAvatar, setRemoveAvatar] = useState(false);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -20,6 +21,19 @@ const ProfileModal = ({ user, isSelf, onClose, onSave }) => {
       // Local preview securely rendering from native memory hooks
       setAvatarPreview(URL.createObjectURL(selected));
       setFile(selected);
+      setRemoveAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (window.confirm("Are you sure you want to remove your profile picture?")) {
+      setAvatarPreview(null);
+      setFile(null);
+      setRemoveAvatar(true);
+      // Trigger the backend API instantly without closing the modal
+      setLoading(true);
+      await onSave({ removeAvatar: true }, false);
+      setLoading(false);
     }
   };
 
@@ -29,7 +43,7 @@ const ProfileModal = ({ user, isSelf, onClose, onSave }) => {
 
     setLoading(true);
     // Submit generic payload mapping back up to parent wrapper cleanly
-    await onSave({ file, bio });
+    await onSave({ file, bio, removeAvatar });
     setLoading(false);
   };
 
@@ -54,7 +68,13 @@ const ProfileModal = ({ user, isSelf, onClose, onSave }) => {
               {avatarPreview ? (
                  <img src={avatarPreview} alt="Preview" style={avatarImgStyle} />
               ) : (
-                 <Avatar user={user} size={90} showOnline={false} />
+                removeAvatar ? (
+                  <div style={{ width: "100%", height: "100%", background: "#eef2f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>
+                    {user.username.charAt(0).toUpperCase()}
+                  </div>
+                ) : (
+                  <Avatar user={user} size={90} showOnline={false} />
+                )
               )}
               {isSelf && (
                 <div style={avatarOverlayStyle}>
@@ -62,6 +82,25 @@ const ProfileModal = ({ user, isSelf, onClose, onSave }) => {
                 </div>
               )}
             </div>
+            
+            {/* Remove Photo Button */}
+            {isSelf && (user.avatar || avatarPreview) && !removeAvatar && (
+              <button
+                type="button"
+                onClick={handleRemoveAvatar}
+                style={{
+                  marginTop: "8px",
+                  background: "transparent",
+                  color: "#ef4444",
+                  border: "none",
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                  fontWeight: "500"
+                }}
+              >
+                Remove Photo
+              </button>
+            )}
             
             {/* Hidden mapped file hook */}
             <input 
@@ -158,6 +197,8 @@ const formStyle = {
 
 const avatarSectionStyle = {
   display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
   justifyContent: "center",
   width: "100%",
   marginBottom: "10px",

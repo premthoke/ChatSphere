@@ -21,7 +21,14 @@ const LogoutIcon = () => (
   </svg>
 );
 
-const Sidebar = ({ selectedUser, onSelectUser }) => {
+const XIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+const Sidebar = ({ selectedUser, onSelectUser, isMobileOpen, onCloseMobile }) => {
   const { user, logout, updateUser }   = useAuth();
   const { connected, onlineStatus, socket } = useSocket();
 
@@ -31,16 +38,22 @@ const Sidebar = ({ selectedUser, onSelectUser }) => {
   const [conversations, setConversations] = useState([]);
   const [showOwnProfile, setShowOwnProfile] = useState(false);
 
-  const handleSaveProfile = async ({ file, bio }) => {
+  const handleSaveProfile = async ({ file, bio, removeAvatar }, closeModal = true) => {
     try {
       const fd = new FormData();
       if (file) fd.append("avatar", file);
       if (bio !== undefined) fd.append("bio", bio);
+      if (removeAvatar) fd.append("removeAvatar", "true");
 
       const { data } = await updateProfile(fd);
       updateUser(data.data);
-      setShowOwnProfile(false);
-      toast.success("Profile updated successfully!");
+      if (closeModal) setShowOwnProfile(false);
+      
+      if (removeAvatar && !file) {
+        toast.success("Profile picture removed!");
+      } else if (closeModal) {
+        toast.success("Profile updated successfully!");
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to update profile.");
     }
@@ -52,6 +65,15 @@ const Sidebar = ({ selectedUser, onSelectUser }) => {
       .then(({ data }) => setConversations(data.data || []))
       .catch(() => {});
   }, []);
+
+  // Globally join all conversation rooms so this client receives backend emits dynamically
+  // Depending on `connected` ensures we re-subscribe to all rooms if the socket drops and reconnects
+  useEffect(() => {
+    if (!socket || !connected || conversations.length === 0) return;
+    conversations.forEach((c) => {
+      if (c.roomId) socket.emit("join_room", { roomId: c.roomId });
+    });
+  }, [socket, connected, conversations]);
 
   // Listen for socket bumps indicating an active thread changed
   useEffect(() => {
@@ -65,8 +87,8 @@ const Sidebar = ({ selectedUser, onSelectUser }) => {
       });
     };
 
-    socket.on("updateConversation", handleConvUpdate);
-    return () => socket.off("updateConversation", handleConvUpdate);
+    socket.on("conversationUpdated", handleConvUpdate);
+    return () => socket.off("conversationUpdated", handleConvUpdate);
   }, [socket]);
 
   // Debounced user search
@@ -95,26 +117,35 @@ const Sidebar = ({ selectedUser, onSelectUser }) => {
   }, [onSelectUser]);
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isMobileOpen ? "mobile-open" : ""}`}>
       {/* ── Header ── */}
       <div className="sidebar-header">
         <div className="sidebar-logo">
           <div className="sidebar-logo-dot">💬</div>
           ChatSphere
         </div>
-        {/* WebSocket connection status badge */}
-        <span
-          style={{
-            fontSize: 10,
-            padding: "2px 7px",
-            borderRadius: "var(--radius-full)",
-            background: connected ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.1)",
-            color: connected ? "var(--success)" : "var(--danger)",
-            fontWeight: 600,
-          }}
-        >
-          {connected ? "● Live" : "○ Off"}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* WebSocket connection status badge */}
+          <span
+            style={{
+              fontSize: 10,
+              padding: "2px 7px",
+              borderRadius: "var(--radius-full)",
+              background: connected ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)",
+              color: connected ? "var(--success)" : "var(--danger)",
+              fontWeight: 600,
+              border: `1px solid ${connected ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)"}`
+            }}
+          >
+            {connected ? "● Live" : "○ Off"}
+          </span>
+          {/* Mobile Close Button */}
+          {isMobileOpen && (
+            <button className="mobile-menu-btn" onClick={onCloseMobile} style={{ marginLeft: "8px", marginRight: 0, padding: "4px" }}>
+              <XIcon />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Search ── */}

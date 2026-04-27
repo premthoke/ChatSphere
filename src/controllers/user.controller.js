@@ -80,6 +80,21 @@ const updateProfile = async (req, res, next) => {
     if (req.file) {
       // Map it as a reliable URL pointing towards your local Express static files middleware
       updates.avatar = `/uploads/${req.file.filename}`;
+    } else if (req.body.removeAvatar === "true" || req.body.removeAvatar === true) {
+      // Explicitly remove the avatar if requested
+      updates.avatar = "";
+      
+      // Optionally delete the physical file if it exists
+      if (req.user.avatar && req.user.avatar.startsWith("/uploads/")) {
+        const fs = require("fs");
+        const path = require("path");
+        const filePath = path.join(__dirname, "../../", req.user.avatar);
+        fs.unlink(filePath, (err) => {
+          if (err && err.code !== 'ENOENT') {
+            console.error(`Failed to delete old avatar file: ${filePath}`, err);
+          }
+        });
+      }
     }
 
     if (Object.keys(updates).length === 0) {

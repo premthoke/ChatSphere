@@ -41,7 +41,7 @@ import { getMessages, sendMessage } from "../services/message.service";
 import toast from "react-hot-toast";
 
 const useChat = (selectedUser) => {
-  const { socket }  = useSocket();
+  const { socket, connected }  = useSocket();
   const { user }    = useAuth();
 
   const [messages, setMessages]       = useState([]);
@@ -87,7 +87,7 @@ const useChat = (selectedUser) => {
       })
       .catch(() => setError("Failed to load messages."))
       .finally(() => setLoadingMsgs(false));
-  }, [selectedUserId]); // Re-fetch exactly only when the selected conversation ID changes
+  }, [selectedUserId, connected]); // Re-fetch when user changes OR when socket reconnects!
 
   // ── Socket Room & Event Subscriptions ─────────────────────────────────────
   useEffect(() => {
@@ -99,18 +99,21 @@ const useChat = (selectedUser) => {
     // Join the room for this conversation on the backend
     socket.emit("join_room", { roomId });
 
-    // ── receive_message ──────────────────────────────────────────────────
-    // FIX C: De-duplicate using seenIdsRef before appending.
-    // This guards against edge cases like rapid remounts or message echoes.
+    // ── newMessage ──────────────────────────────────────────────────
     const handleReceive = (message) => {
       if (!message?._id) return; // malformed payload guard
 
-      // Skip if we already have this message (e.g. we sent it ourselves
-      // and an unexpected echo arrived, or the effect ran twice in StrictMode)
-      if (seenIdsRef.current.has(message._id)) return;
+      // STRICT ACTIVE ROOM GUARD: If it doesn't belong to this active chat, ignore it!
+      // (The Sidebar will still update via conversationUpdated)
+      if (message.roomId !== roomId) return;
 
-      seenIdsRef.current.add(message._id);
-      setMessages((prev) => [...prev, message]);
+      setMessages((prev) => {
+        // Prevent adding the same message twice (solves the Socket vs REST race condition)
+        if (prev.some((m) => m._id === message._id)) {
+          return prev; 
+        }
+        return [...prev, message];
+      });
     };
 
     // ── Typing indicators ────────────────────────────────────────────────
@@ -119,8 +122,17 @@ const useChat = (selectedUser) => {
 
     // ── messages_read ────────────────────────────────────────────────────
     const handleMessagesRead = ({ readerId }) => {
-      // If the other user read them, our sent messages are now read
-      if (readerId !== user._id) {
+      // Multi-tab sync: If WE read the messages in another tab, mark incoming as read.
+      if (readerId === user._id) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            (msg.sender === selectedUser._id || msg.sender?._id === selectedUser._id)
+              ? { ...msg, isRead: true }
+              : msg
+          )
+        );
+      } else {
+        // THEY read the messages, so our sent messages are now read.
         setMessages((prev) =>
           prev.map((msg) =>
             (msg.sender === user._id || msg.sender?._id === user._id)
@@ -131,7 +143,7 @@ const useChat = (selectedUser) => {
       }
     };
 
-    socket.on("receive_message",      handleReceive);
+    socket.on("newMessage",           handleReceive);
     socket.on("user_typing",          handleTyping);
     socket.on("user_stopped_typing",  handleStopTyping);
     socket.on("messages_read",        handleMessagesRead);
@@ -140,7 +152,7 @@ const useChat = (selectedUser) => {
     // Without this, changing conversations or re-connecting leaves stale
     // listeners that fire on the wrong conversation's messages.
     return () => {
-      socket.off("receive_message",      handleReceive);
+      socket.off("newMessage",           handleReceive);
       socket.off("user_typing",          handleTyping);
       socket.off("user_stopped_typing",  handleStopTyping);
       socket.off("messages_read",        handleMessagesRead);
@@ -171,30 +183,62 @@ const useChat = (selectedUser) => {
   }, [messages, selectedUser, socket, roomId]);
 
   // ── Send Message ───────────────────────────────────────────────────────────
-  const send = useCallback(async (content) => {
-    if (!content.trim() || !selectedUser) return;
+  const send = useCallback(async ({ content, file }) => {
+    if ((!content?.trim() && !file) || !selectedUser) return;
+
+    if (!connected) {
+      toast.error("Cannot send message while offline. Please wait to reconnect.");
+      return;
+    }
 
     setSendingMsg(true);
     try {
-      // 1. Persist via REST API — this returns the server-confirmed message
-      //    object with a real MongoDB _id and server timestamp.
-      const { data } = await sendMessage(selectedUser._id, content.trim());
-      const msg = data.data;
-
-      // 2. Optimistic update: immediately add the message to our own UI.
-      //    Mark its ID as seen so the socket listener doesn't re-add it
-      //    if a spurious echo arrives.
-      seenIdsRef.current.add(msg._id);
-      setMessages((prev) => [...prev, msg]);
-
-      // 3. Broadcast to the other user via Socket.IO.
-      //    The backend's "send_message" handler does socket.to(roomId).emit(...)
-      //    meaning ONLY the OTHER participants receive "receive_message" —
-      //    we ourselves are excluded, so there's no server-side double-add.
-      if (socket && roomId) {
-        socket.emit("send_message", { roomId, message: msg });
+      let payload;
+      if (file) {
+        payload = new FormData();
+        payload.append("receiverId", selectedUser._id);
+        payload.append("file", file);
+        if (content?.trim()) payload.append("content", content.trim());
+      } else {
+        payload = selectedUser._id; // backwards compatible for text-only
       }
+
+      // 1. Optimistic UI update: Create a temporary message and render it instantly.
+      const tempId = `temp-${Date.now()}`;
+      const tempMsg = {
+        _id: tempId,
+        content: content?.trim() || "",
+        sender: user, 
+        roomId,
+        isRead: false,
+        createdAt: new Date().toISOString(),
+        type: file ? (file.type.startsWith("image/") ? "image" : "file") : "text",
+        fileUrl: file ? URL.createObjectURL(file) : null,
+        fileName: file ? file.name : null
+      };
+
+      setMessages((prev) => [...prev, tempMsg]);
+
+      // 2. Persist via REST API
+      const { data } = await sendMessage(payload, content?.trim());
+      const realMsg = data.data;
+
+      // 3. Replace the temporary message with the real server-confirmed message
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => m._id !== tempId);
+        // Ensure the socket hasn't already beaten the API to appending it!
+        if (!filtered.some((m) => m._id === realMsg._id)) {
+          filtered.push(realMsg);
+        }
+        return filtered;
+      });
+
+      // 4. The backend controller now explicitly emits `newMessage` to the `roomId`
+      //    for BOTH sender and receiver, keeping us perfectly in sync. 
+      //    No manual emit is required from the frontend!
     } catch (err) {
+      // Revert optimistic update on failure
+      setMessages((prev) => prev.filter((m) => !m._id.toString().startsWith("temp-")));
       toast.error(err.response?.data?.message || "Failed to send message.");
     } finally {
       setSendingMsg(false);
@@ -213,7 +257,7 @@ const useChat = (selectedUser) => {
     }, 1500);
   }, [socket, roomId]);
 
-  return { messages, loadingMsgs, sendingMsg, isTyping, error, send, emitTyping };
+  return { messages, loadingMsgs, sendingMsg, isTyping, error, send, emitTyping, connected };
 };
 
 export default useChat;

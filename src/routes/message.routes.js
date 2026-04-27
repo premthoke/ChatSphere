@@ -11,6 +11,7 @@ const { body, param, query } = require("express-validator");
 const { sendMessage, getMessages, deleteMessage, getConversations } = require("../controllers/message.controller");
 const { protect } = require("../middleware/auth.middleware");
 const validate = require("../middleware/validate.middleware");
+const { uploadMessageFile } = require("../middleware/upload.middleware");
 
 const router = express.Router();
 
@@ -25,8 +26,8 @@ const sendMessageRules = [
     .isMongoId().withMessage("Invalid receiver ID."),
 
   body("content")
+    .optional()
     .trim()
-    .notEmpty().withMessage("Message content cannot be empty.")
     .isLength({ max: 2000 }).withMessage("Message cannot exceed 2000 characters."),
 
   body("type")
@@ -50,9 +51,15 @@ const getMessagesRules = [
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 // @route   POST /api/messages
-// @desc    Send a message to another user
+// @desc    Send a message to another user (supports file attachments)
 // @access  Private
-router.post("/", sendMessageRules, validate, sendMessage);
+router.post(
+  "/", 
+  ...uploadMessageFile, 
+  sendMessageRules, 
+  validate, 
+  sendMessage
+);
 
 // @route   GET /api/messages/conversations
 // @desc    Get all recent active conversations mapped to unread badges

@@ -20,11 +20,31 @@ const { createError } = require("../utils/apiError");
 const sendMessage = async (req, res, next) => {
   try {
     const senderId = req.user._id;
-    const { receiverId, content, type = "text" } = req.body;
+    let { receiverId, content, type } = req.body;
 
     // Prevent users from messaging themselves
     if (senderId.toString() === receiverId) {
       return next(createError(400, "You cannot send a message to yourself."));
+    }
+
+    let fileUrl = null;
+    let fileName = null;
+
+    if (req.file) {
+      fileUrl = `/uploads/${req.file.filename}`;
+      fileName = req.file.originalname;
+      
+      // Determine type based on mimetype
+      if (req.file.mimetype.startsWith("image/")) {
+        type = "image";
+      } else {
+        type = "file";
+      }
+    } else {
+      type = type || "text";
+      if (!content || content.trim() === "") {
+        return next(createError(400, "Message content cannot be empty."));
+      }
     }
 
     // Verify the receiver exists
@@ -41,8 +61,10 @@ const sendMessage = async (req, res, next) => {
       sender: senderId,
       receiver: receiverId,
       roomId,
-      content,
+      content: content || "",
       type,
+      fileUrl,
+      fileName,
     });
 
     // Find or create conversation explicitly preventing duplicates
@@ -73,11 +95,18 @@ const sendMessage = async (req, res, next) => {
     await conversation.populate("participants", "username avatar isOnline");
     await conversation.populate("lastMessage");
 
+    // Emit real-time events to the unified room directly from the backend
+    const { getIO } = require("../config/socket");
+    const io = getIO();
+    
+    io.to(roomId).emit("newMessage", message);
+    io.to(roomId).emit("conversationUpdated", conversation);
+
     res.status(201).json({
       success: true,
       message: "Message sent.",
       data: message,
-      conversation // Inject into response so Socket.IO logic can pass it identically!
+      conversation // Keep in response for backward compatibility
     });
   } catch (err) {
     next(err);

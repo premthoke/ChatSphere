@@ -6,11 +6,17 @@ import api from "./api";
 
 /**
  * Send a message to another user.
- * @param {string} receiverId — MongoDB ID of the recipient
- * @param {string} content   — message text
+ * @param {string|FormData} receiverIdOrFormData — MongoDB ID of the recipient OR a FormData object
+ * @param {string} [content]   — message text (optional if using FormData)
  */
-export const sendMessage = (receiverId, content) =>
-  api.post("/messages", { receiverId, content });
+export const sendMessage = (receiverIdOrFormData, content) => {
+  if (receiverIdOrFormData instanceof FormData) {
+    return api.post("/messages", receiverIdOrFormData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  }
+  return api.post("/messages", { receiverId: receiverIdOrFormData, content });
+};
 
 /**
  * Get paginated message history with a specific user.

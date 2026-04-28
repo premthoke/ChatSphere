@@ -139,7 +139,11 @@ const ChatWindow = ({ selectedUser, chat, onMenuClick }) => {
               <span className="messages-date-label">{label}</span>
             </div>
             {dayMsgs.map((msg) => (
-              <MessageBubble key={msg._id} message={msg} />
+              <MessageBubble 
+                key={msg._id} 
+                message={msg} 
+                onDelete={() => chat.deleteMsg(msg._id)} 
+              />
             ))}
           </div>
         ))}

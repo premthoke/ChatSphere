@@ -100,7 +100,11 @@ const sendMessage = async (req, res, next) => {
     const io = getIO();
     
     io.to(roomId).emit("newMessage", message);
-    io.to(roomId).emit("conversationUpdated", conversation);
+    
+    // Broadcast conversation update to both participants' private rooms
+    // This ensures the Sidebar updates even if they aren't actively "in" the chat room.
+    io.to(senderId.toString()).emit("conversationUpdated", conversation);
+    io.to(receiverId.toString()).emit("conversationUpdated", conversation);
 
     res.status(201).json({
       success: true,
@@ -204,7 +208,21 @@ const deleteMessage = async (req, res, next) => {
     message.content = "This message was deleted."; // Overwrite content for privacy
     await message.save();
 
-    res.status(200).json({ success: true, message: "Message deleted." });
+    // Find the conversation to broadcast update
+    const conversation = await Conversation.findOne({ roomId: message.roomId })
+      .populate("participants", "username avatar isOnline email")
+      .populate("lastMessage");
+
+    if (conversation) {
+      const { getIO } = require("../config/socket");
+      const io = getIO();
+      // Broadcast to both participants
+      conversation.participants.forEach(p => {
+        io.to(p._id.toString()).emit("conversationUpdated", conversation);
+      });
+    }
+
+    res.status(200).json({ success: true, message: "Message deleted.", data: message });
   } catch (err) {
     next(err);
   }

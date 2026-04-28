@@ -34,11 +34,12 @@ const UserListItem = ({ user, isActive, lastMessage, unreadCount, onClick }) => 
         )}
       </div>
       <div className="user-item-preview">
-        {lastMessage
-          ? truncate(lastMessage)
-          : user.bio
-          ? truncate(user.bio)
-          : "Say hello! 👋"}
+        {(() => {
+          if (!lastMessage) return user.bio ? truncate(user.bio) : "Say hello! 👋";
+          if (lastMessage.type === "image") return "📷 Image";
+          if (lastMessage.type === "file")  return "📄 File";
+          return truncate(lastMessage.content || "");
+        })()}
       </div>
     </div>
   </div>

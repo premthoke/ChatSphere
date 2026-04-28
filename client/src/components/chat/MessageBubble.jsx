@@ -5,9 +5,11 @@
 import { formatTime } from "../../utils/helpers";
 import { useAuth } from "../../context/AuthContext";
 
-const MessageBubble = ({ message }) => {
+const MessageBubble = ({ message, onDelete }) => {
   const { user } = useAuth();
-  const isSent   = message.sender?._id === user._id || message.sender === user._id;
+  const currentUserId = user?.id || user?._id;
+  const messageSenderId = message.sender?._id || message.sender?.id || message.sender;
+  const isSent   = messageSenderId === currentUserId;
   const deleted  = message.isDeleted;
 
   // Render attachment if exists and not deleted
@@ -48,6 +50,15 @@ const MessageBubble = ({ message }) => {
           "This message was deleted."
         ) : (
           <>
+            {isSent && !deleted && (
+              <button 
+                className="message-delete-btn" 
+                onClick={onDelete}
+                title="Delete message"
+              >
+                🗑️
+              </button>
+            )}
             {renderAttachment()}
             {message.content && <div className="message-text">{message.content}</div>}
           </>

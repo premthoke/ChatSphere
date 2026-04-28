@@ -118,7 +118,9 @@ const initSocket = (server) => {
           conversation.unreadCount.set(userId.toString(), 0);
           await conversation.save();
           // Inform both parties the conversation object updated its stats globally
-          io.to(roomId).emit("conversationUpdated", conversation);
+          // We emit to individual user rooms to ensure sidebar updates even if they aren't in the chat room.
+          io.to(userId.toString()).emit("conversationUpdated", conversation);
+          io.to(selectedUserId.toString()).emit("conversationUpdated", conversation);
         }
 
         // Emit to the room that messages were read

@@ -37,7 +37,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import useSocket from "../context/useSocket";
 import { useAuth }   from "../context/AuthContext";
-import { getMessages, sendMessage } from "../services/message.service";
+import { getMessages, sendMessage, deleteMessage } from "../services/message.service";
 import toast from "react-hot-toast";
 
 const useChat = (selectedUser) => {
@@ -57,10 +57,12 @@ const useChat = (selectedUser) => {
   // Using a ref (not state) so updates are synchronous without causing re-renders.
   const seenIdsRef = useRef(new Set());
 
+  const currentUserId = user?.id || user?._id;
+
   // Derive the deterministic room ID shared with the backend.
   // Sort guarantees the same string regardless of who initiates the chat.
-  const roomId = selectedUser
-    ? [user._id, selectedUser._id].sort().join("_")
+  const roomId = (selectedUser && currentUserId)
+    ? [currentUserId, selectedUser._id || selectedUser.id].sort().join("_")
     : null;
 
   const selectedUserId = selectedUser?._id;
@@ -123,10 +125,10 @@ const useChat = (selectedUser) => {
     // ── messages_read ────────────────────────────────────────────────────
     const handleMessagesRead = ({ readerId }) => {
       // Multi-tab sync: If WE read the messages in another tab, mark incoming as read.
-      if (readerId === user._id) {
+      if (readerId === currentUserId) {
         setMessages((prev) =>
           prev.map((msg) =>
-            (msg.sender === selectedUser._id || msg.sender?._id === selectedUser._id)
+            (msg.sender === selectedUser._id || msg.sender?._id === selectedUser._id || msg.sender === selectedUser.id)
               ? { ...msg, isRead: true }
               : msg
           )
@@ -135,7 +137,7 @@ const useChat = (selectedUser) => {
         // THEY read the messages, so our sent messages are now read.
         setMessages((prev) =>
           prev.map((msg) =>
-            (msg.sender === user._id || msg.sender?._id === user._id)
+            (msg.sender === currentUserId)
               ? { ...msg, isRead: true }
               : msg
           )
@@ -245,6 +247,22 @@ const useChat = (selectedUser) => {
     }
   }, [selectedUser, socket, roomId]);
 
+  // ── Delete Message ────────────────────────────────────────────────────────
+  const deleteMsg = useCallback(async (messageId) => {
+    try {
+      await deleteMessage(messageId);
+      // Update local state instantly
+      setMessages((prev) =>
+        prev.map((m) =>
+          m._id === messageId ? { ...m, isDeleted: true, content: "This message was deleted." } : m
+        )
+      );
+      toast.success("Message deleted.");
+    } catch (err) {
+      toast.error("Failed to delete message.");
+    }
+  }, []);
+
   // ── Typing Indicator ───────────────────────────────────────────────────────
   const emitTyping = useCallback(() => {
     if (!socket || !roomId) return;
@@ -257,7 +275,7 @@ const useChat = (selectedUser) => {
     }, 1500);
   }, [socket, roomId]);
 
-  return { messages, loadingMsgs, sendingMsg, isTyping, error, send, emitTyping, connected };
+  return { messages, loadingMsgs, sendingMsg, isTyping, error, send, emitTyping, deleteMsg, connected };
 };
 
 export default useChat;

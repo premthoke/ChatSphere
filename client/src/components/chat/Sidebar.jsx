@@ -201,7 +201,7 @@ const Sidebar = ({ selectedUser, onSelectUser, isMobileOpen, onCloseMobile }) =>
                       key={c._id}
                       user={liveU}
                       isActive={selectedUser?._id === liveU._id}
-                      lastMessage={c.lastMessage?.content}
+                      lastMessage={c.lastMessage}
                       unreadCount={unreadCount}
                       onClick={() => handleSelect(otherUser)}
                     />

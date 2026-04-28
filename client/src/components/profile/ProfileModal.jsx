@@ -15,6 +15,12 @@ const ProfileModal = ({ user, isSelf, onClose, onSave }) => {
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Derived state to check if any modifications were made
+  const hasChanges = 
+    bio !== (user?.bio || "") || 
+    file !== null || 
+    removeAvatar === true;
+
   const handleFileChange = (e) => {
     const selected = e.target.files[0];
     if (selected) {
@@ -25,16 +31,12 @@ const ProfileModal = ({ user, isSelf, onClose, onSave }) => {
     }
   };
 
-  const handleRemoveAvatar = async () => {
-    if (window.confirm("Are you sure you want to remove your profile picture?")) {
-      setAvatarPreview(null);
-      setFile(null);
-      setRemoveAvatar(true);
-      // Trigger the backend API instantly without closing the modal
-      setLoading(true);
-      await onSave({ removeAvatar: true }, false);
-      setLoading(false);
-    }
+  const handleRemoveAvatar = () => {
+    // Only update local state to reflect the UI change
+    // The actual API call will happen when "Save Changes" is clicked
+    setAvatarPreview(null);
+    setFile(null);
+    setRemoveAvatar(true);
   };
 
   const handleSubmit = async (e) => {
@@ -143,7 +145,15 @@ const ProfileModal = ({ user, isSelf, onClose, onSave }) => {
 
           {/* Action Buttons */}
           {isSelf && (
-            <button type="submit" disabled={loading} style={submitBtnStyle}>
+            <button 
+              type="submit" 
+              disabled={loading || !hasChanges} 
+              style={{
+                ...submitBtnStyle,
+                opacity: (loading || !hasChanges) ? 0.5 : 1,
+                cursor: (loading || !hasChanges) ? "not-allowed" : "pointer"
+              }}
+            >
               {loading ? "Saving..." : "Save Changes"}
             </button>
           )}

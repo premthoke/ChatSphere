@@ -60,7 +60,7 @@ export const SocketProvider = ({ children }) => {
     // Create Socket.IO connection with JWT in auth handshake
     const sock = io(SOCKET_URL, {
       auth: { token },
-      transports: ["websocket", "polling"],
+      transports: ["websocket"], // Force WebSocket for production
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
     });

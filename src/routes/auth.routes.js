@@ -12,6 +12,13 @@ const { body } = require("express-validator");
 const { register, login, getMe, logout } = require("../controllers/auth.controller");
 const { protect } = require("../middleware/auth.middleware");
 const validate = require("../middleware/validate.middleware");
+const rateLimit = require("express-rate-limit");
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { success: false, message: "Too many login/register attempts. Try again in 15 mins." },
+});
 
 const router = express.Router();
 
@@ -53,12 +60,12 @@ const loginRules = [
 // @route   POST /api/auth/register
 // @desc    Register new user
 // @access  Public
-router.post("/register", registerRules, validate, register);
+router.post("/register", authLimiter, registerRules, validate, register);
 
 // @route   POST /api/auth/login
 // @desc    Login user, returns JWT
 // @access  Public
-router.post("/login", loginRules, validate, login);
+router.post("/login", authLimiter, loginRules, validate, login);
 
 // @route   GET /api/auth/me
 // @desc    Get currently authenticated user

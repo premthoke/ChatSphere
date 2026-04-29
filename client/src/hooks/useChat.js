@@ -57,6 +57,12 @@ const useChat = (selectedUser) => {
   // Using a ref (not state) so updates are synchronous without causing re-renders.
   const seenIdsRef = useRef(new Set());
 
+  // Use a Set to track rooms we have already joined to prevent duplicate emits
+  const joinedRoomsRef = useRef(new Set());
+
+  // Guard to prevent duplicate API fetches on rapid reconnections
+  const isFetchingRef = useRef(false);
+
   const currentUserId = user?.id || user?._id;
 
   // Derive the deterministic room ID shared with the backend.
@@ -68,52 +74,55 @@ const useChat = (selectedUser) => {
   const selectedUserId = selectedUser?._id;
 
   // ── Fetch Message History ──────────────────────────────────────────────────
-  useEffect(() => {
-    if (!selectedUserId) {
-      setMessages([]);
-      seenIdsRef.current.clear();
-      return;
-    }
+  const fetchMessages = useCallback(async () => {
+    if (!selectedUserId || isFetchingRef.current) return;
 
+    isFetchingRef.current = true;
     setLoadingMsgs(true);
     setError(null);
 
-    getMessages(selectedUserId)
-      .then(({ data }) => {
-        const fetched = data.data.messages;
+    try {
+      const { data } = await getMessages(selectedUserId);
+      const fetched = data.data.messages;
 
-        // Seed the seen-IDs set from history so real-time dupes are caught
-        seenIdsRef.current = new Set(fetched.map((m) => m._id));
+      // Seed the seen-IDs set from history so real-time dupes are caught
+      seenIdsRef.current = new Set(fetched.map((m) => m._id));
+      setMessages(fetched);
+    } catch (err) {
+      setError("Failed to load messages.");
+    } finally {
+      setLoadingMsgs(false);
+      isFetchingRef.current = false;
+    }
+  }, [selectedUserId]);
 
-        setMessages(fetched);
-      })
-      .catch(() => setError("Failed to load messages."))
-      .finally(() => setLoadingMsgs(false));
-  }, [selectedUserId, connected]); // Re-fetch when user changes OR when socket reconnects!
+  useEffect(() => {
+    fetchMessages();
+  }, [fetchMessages]); // Re-fetch when user changes! (Connected is now handled by socket listener)
 
   // ── Socket Room & Event Subscriptions ─────────────────────────────────────
   useEffect(() => {
-    // FIX A: `socket` is now a reactive state value from SocketContext, so
-    // this effect properly re-runs when the connection is established after
-    // the initial render (previously socket was always null here).
     if (!socket || !roomId) return;
 
-    // Join the room for this conversation on the backend
-    socket.emit("join_room", { roomId });
+    const joinActiveRoom = () => {
+      // Prevent duplicate room joins
+      if (!joinedRoomsRef.current.has(roomId)) {
+        socket.emit("join_room", { roomId });
+        joinedRoomsRef.current.add(roomId);
+        console.log(`[Socket] Joined active room: ${roomId}`);
+      }
+    };
+
+    // Initial join
+    joinActiveRoom();
 
     // ── newMessage ──────────────────────────────────────────────────
     const handleReceive = (message) => {
-      if (!message?._id) return; // malformed payload guard
-
-      // STRICT ACTIVE ROOM GUARD: If it doesn't belong to this active chat, ignore it!
-      // (The Sidebar will still update via conversationUpdated)
+      if (!message?._id) return;
       if (message.roomId !== roomId) return;
 
       setMessages((prev) => {
-        // Prevent adding the same message twice (solves the Socket vs REST race condition)
-        if (prev.some((m) => m._id === message._id)) {
-          return prev; 
-        }
+        if (prev.some((m) => m._id === message._id)) return prev; 
         return [...prev, message];
       });
     };
@@ -123,18 +132,22 @@ const useChat = (selectedUser) => {
     const handleStopTyping  = () => setIsTyping(false);
 
     // ── messages_read ────────────────────────────────────────────────────
-    const handleMessagesRead = ({ readerId }) => {
-      // Multi-tab sync: If WE read the messages in another tab, mark incoming as read.
+    const handleMessagesRead = ({ readerId, roomId: incomingRoomId }) => {
+      // STRICT MULTI-TAB SYNC GUARD: 
+      // Only process if it matches the current active room and is a relevant sync event.
+      if (incomingRoomId !== roomId) return;
+
       if (readerId === currentUserId) {
+        // Multi-tab sync: WE read these messages in another tab
         setMessages((prev) =>
           prev.map((msg) =>
-            (msg.sender === selectedUser._id || msg.sender?._id === selectedUser._id || msg.sender === selectedUser.id)
+            (msg.sender === selectedUserId || msg.sender?._id === selectedUserId)
               ? { ...msg, isRead: true }
               : msg
           )
         );
-      } else {
-        // THEY read the messages, so our sent messages are now read.
+      } else if (readerId === selectedUserId) {
+        // THEY read the messages
         setMessages((prev) =>
           prev.map((msg) =>
             (msg.sender === currentUserId)
@@ -145,21 +158,30 @@ const useChat = (selectedUser) => {
       }
     };
 
+    // Reconnection Handler
+    const handleConnect = () => {
+      console.log("[Socket] Reconnected - Refreshing state...");
+      joinedRoomsRef.current.clear(); // Clear join cache to force re-emit
+      joinActiveRoom();
+      fetchMessages(); // Safe fetch with isFetchingRef guard
+    };
+
+    socket.on("connect",              handleConnect);
     socket.on("newMessage",           handleReceive);
     socket.on("user_typing",          handleTyping);
     socket.on("user_stopped_typing",  handleStopTyping);
     socket.on("messages_read",        handleMessagesRead);
 
-    // FIX D: Cleanup removes the exact function references registered above.
-    // Without this, changing conversations or re-connecting leaves stale
-    // listeners that fire on the wrong conversation's messages.
     return () => {
+      socket.off("connect",              handleConnect);
       socket.off("newMessage",           handleReceive);
       socket.off("user_typing",          handleTyping);
       socket.off("user_stopped_typing",  handleStopTyping);
       socket.off("messages_read",        handleMessagesRead);
+      // Clean up joined rooms ref for this room when unmounting or room changes
+      joinedRoomsRef.current.delete(roomId);
     };
-  }, [socket, roomId]); // Re-subscribe when socket or room changes
+  }, [socket, roomId, currentUserId, selectedUserId, fetchMessages]);
 
   // ── Emit Read Receipts ─────────────────────────────────────────────────────
   // Automatically mark the other user's incoming messages as read when viewing
@@ -247,19 +269,27 @@ const useChat = (selectedUser) => {
     }
   }, [selectedUser, socket, roomId]);
 
-  // ── Delete Message ────────────────────────────────────────────────────────
+  // ── Delete Message (Optimistic with Rollback) ──────────────────────────
   const deleteMsg = useCallback(async (messageId) => {
+    let previousMessages;
+    
+    // 1. Optimistically update local state
+    setMessages((prev) => {
+      previousMessages = prev; // Capture for rollback
+      return prev.map((m) =>
+        m._id === messageId 
+          ? { ...m, isDeleted: true, content: "This message was deleted." } 
+          : m
+      );
+    });
+
     try {
       await deleteMessage(messageId);
-      // Update local state instantly
-      setMessages((prev) =>
-        prev.map((m) =>
-          m._id === messageId ? { ...m, isDeleted: true, content: "This message was deleted." } : m
-        )
-      );
       toast.success("Message deleted.");
     } catch (err) {
-      toast.error("Failed to delete message.");
+      // 2. Rollback on failure
+      setMessages(previousMessages);
+      toast.error("Failed to delete message. Rolled back.");
     }
   }, []);
 

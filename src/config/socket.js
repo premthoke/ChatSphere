@@ -27,12 +27,20 @@ const userSocketMap = new Map(); // Tracks active sockets: Map<userId, Set<socke
  * @param {import("http").Server} server
  */
 const initSocket = (server) => {
+  const allowedOrigins = [
+    process.env.CLIENT_URL,
+    process.env.CLIENT_ORIGIN,
+    "http://localhost:3000",
+    "http://localhost:5173",
+  ].filter(Boolean);
+
   io = new Server(server, {
     cors: {
-      origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
+      origin: allowedOrigins,
       methods: ["GET", "POST"],
       credentials: true,
     },
+    transports: ["websocket"], // Force WebSocket for production stability
     // Ping interval / timeout (ms) — keeps connections alive
     pingInterval: 10000,
     pingTimeout: 5000,
@@ -113,7 +121,10 @@ const initSocket = (server) => {
         
         // Safely wipe the bubble notification counter when inside the chat natively
         const Conversation = require("../models/conversation.model");
-        const conversation = await Conversation.findOne({ roomId });
+        const conversation = await Conversation.findOne({ roomId })
+          .populate("participants", "username avatar isOnline email")
+          .populate("lastMessage");
+
         if (conversation) {
           conversation.unreadCount.set(userId.toString(), 0);
           await conversation.save();

@@ -21,11 +21,10 @@ const MenuIcon = () => (
 );
 
 const TypingIndicator = () => (
-  <div className="typing-indicator">
+  <div className="typing-indicator" title="User is typing...">
     <div className="typing-dots">
       <span /><span /><span />
     </div>
-    <span style={{ fontSize: 11, color: "var(--text-muted)" }}>typing…</span>
   </div>
 );
 
@@ -33,11 +32,37 @@ const ChatWindow = ({ selectedUser, chat, onMenuClick }) => {
   const { messages, loadingMsgs, sendingMsg, isTyping, error, send, emitTyping, connected } = chat;
   const bottomRef = useRef(null);
   const [showProfile, setShowProfile] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   // Auto-scroll to latest message whenever the list or typing state changes
   useEffect(() => {
+    // Immediate scroll for better feel
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
+
+  // ── Drag & Drop Handlers ────────────────────────────────────────────────
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    if (!connected) return;
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (!connected || !selectedUser) return;
+
+    const files = e.dataTransfer.files;
+    if (files && files[0]) {
+      // Auto-upload the first file dropped
+      send({ content: "", file: files[0] });
+    }
+  };
 
   // ── No user selected ────────────────────────────────────────────────────
   if (!selectedUser) {
@@ -58,7 +83,12 @@ const ChatWindow = ({ selectedUser, chat, onMenuClick }) => {
   const grouped = groupMessagesByDate(messages);
 
   return (
-    <div className="chat-window">
+    <div 
+      className={`chat-window ${isDragOver ? "drag-over" : ""}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/* ── Header ── */}
       <div className="chat-header">
         <button className="mobile-menu-btn" onClick={(e) => { e.stopPropagation(); onMenuClick(); }}>
@@ -95,9 +125,10 @@ const ChatWindow = ({ selectedUser, chat, onMenuClick }) => {
             display: "flex",
             alignItems: "center",
             gap: "4px",
-            border: "1px solid #fde68a"
+            border: "1px solid #fde68a",
+            animation: "pulse 1.5s infinite"
           }}>
-            <span style={{ display: "inline-block", width: "6px", height: "6px", borderRadius: "50%", background: "#f59e0b", animation: "pulse 1.5s infinite" }}></span>
+            <span style={{ display: "inline-block", width: "6px", height: "6px", borderRadius: "50%", background: "#f59e0b" }}></span>
             Reconnecting...
           </div>
         )}
@@ -134,7 +165,7 @@ const ChatWindow = ({ selectedUser, chat, onMenuClick }) => {
 
         {/* Grouped messages by date */}
         {grouped.map(({ label, messages: dayMsgs }) => (
-          <div key={label}>
+          <div key={label} style={{ display: 'contents' }}>
             <div className="messages-date-divider">
               <span className="messages-date-label">{label}</span>
             </div>
@@ -152,7 +183,7 @@ const ChatWindow = ({ selectedUser, chat, onMenuClick }) => {
         {isTyping && <TypingIndicator />}
 
         {/* Invisible anchor for auto-scroll */}
-        <div ref={bottomRef} />
+        <div ref={bottomRef} style={{ height: 1 }} />
       </div>
 
       {/* ── Input ── */}

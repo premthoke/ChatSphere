@@ -88,8 +88,18 @@ const Sidebar = ({ selectedUser, onSelectUser, isMobileOpen, onCloseMobile }) =>
     };
 
     socket.on("conversationUpdated", handleConvUpdate);
-    return () => socket.off("conversationUpdated", handleConvUpdate);
-  }, [socket]);
+    socket.on("user_updated", (updatedUser) => {
+      // Sync own profile across tabs
+      if (updatedUser.id === (user?.id || user?._id)) {
+        updateUser(updatedUser);
+      }
+    });
+
+    return () => {
+      socket.off("conversationUpdated",  handleConvUpdate);
+      socket.off("user_updated");
+    };
+  }, [socket, user, updateUser]);
 
   // Debounced user search
   useEffect(() => {

@@ -59,6 +59,16 @@ const errorHandler = (err, req, res, _next) => {
     message = "Token expired. Please log in again.";
   }
 
+  // ── Multer Errors ─────────────────────────────────────────────────────────
+  if (err.code === "LIMIT_FILE_SIZE") {
+    statusCode = 400;
+    message = "File is too large. Max limit is 5MB.";
+  }
+  if (err instanceof require("multer").MulterError) {
+    statusCode = 400;
+    message = `Upload error: ${err.message}`;
+  }
+
   // Log server-side errors (5xx) at error level, client errors (4xx) at warn
   if (statusCode >= 500) {
     logger.error(`[${req.method}] ${req.originalUrl} — ${statusCode}: ${err.stack}`);

@@ -21,43 +21,56 @@ require("dotenv").config();
 
 const app = express();
 
-// ── Security Headers (Helmet sets sane HTTP response headers) ────────────────
+// ── 1. Trust Proxy (Required for Heroku/Render/AWS) ──────────────────────────
+app.set("trust proxy", 1);
+
+// ── 2. Security Headers (Helmet sets sane HTTP response headers) ────────────────
 app.use(helmet());
 
-// ── CORS ─────────────────────────────────────────────────────────────────────
+// ── 3. CORS (Secure dynamic origin validation) ───────────────────────────────
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  process.env.CLIENT_ORIGIN,
+  "http://localhost:3000",
+  "http://localhost:5173",
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
-    credentials: true, // allow cookies / Authorization header
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl) or if in allowed list
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   })
 );
 
-// ── Request-body parsing ─────────────────────────────────────────────────────
+// ── 4. Request-body parsing ─────────────────────────────────────────────────────
 app.use(express.json({ limit: "10kb" }));         // JSON body, max 10 KB
 app.use(express.urlencoded({ extended: true }));  // form-encoded body
 
-// ── HTTP request logging (skip in test env) ──────────────────────────────────
+// ── 5. HTTP request logging (skip in test env) ──────────────────────────────────
 if (process.env.NODE_ENV !== "test") {
   app.use(morgan("dev"));
 }
 
-// ── Global Rate Limiter ───────────────────────────────────────────────────────
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 min
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: "Too many requests from this IP. Please try again later.",
-  },
+// ── 6. Rate Limiters ───────────────────────────────────────────────────────────
+// Global Rate Limiter
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 300,
+  message: { success: false, message: "Too many requests. Please try again later." },
 });
-app.use("/api", limiter);
+app.use("/api", globalLimiter);
 
-// ── Health-check ─────────────────────────────────────────────────────────────
+// ── 7. Health-check ─────────────────────────────────────────────────────────────
 app.get("/api/health", (_req, res) => {
-  res.json({ success: true, message: "ChatSphere API is healthy ✅", timestamp: new Date() });
+  res.status(200).json({ status: "ok" });
 });
 
 // ── Static Files (Multer Uploads) ─────────────────────────────────────────────

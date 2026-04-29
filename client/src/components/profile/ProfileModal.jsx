@@ -13,6 +13,7 @@ const ProfileModal = ({ user, isSelf, onClose, onSave }) => {
   const [file, setFile] = useState(null);
   const [removeAvatar, setRemoveAvatar] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const fileInputRef = useRef(null);
 
   // Derived state to check if any modifications were made
@@ -71,7 +72,7 @@ const ProfileModal = ({ user, isSelf, onClose, onSave }) => {
                  <img src={avatarPreview} alt="Preview" style={avatarImgStyle} />
               ) : (
                 removeAvatar ? (
-                  <div style={{ width: "100%", height: "100%", background: "#eef2f6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>
+                  <div style={{ width: "100%", height: "100%", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem", color: "var(--text-primary)" }}>
                     {user.username.charAt(0).toUpperCase()}
                   </div>
                 ) : (
@@ -85,23 +86,41 @@ const ProfileModal = ({ user, isSelf, onClose, onSave }) => {
               )}
             </div>
             
-            {/* Remove Photo Button */}
+            {/* Remove Photo Section with Confirmation */}
             {isSelf && (user.avatar || avatarPreview) && !removeAvatar && (
-              <button
-                type="button"
-                onClick={handleRemoveAvatar}
-                style={{
-                  marginTop: "8px",
-                  background: "transparent",
-                  color: "#ef4444",
-                  border: "none",
-                  fontSize: "0.85rem",
-                  cursor: "pointer",
-                  fontWeight: "500"
-                }}
-              >
-                Remove Photo
-              </button>
+              <div style={{ marginTop: "8px", textAlign: "center" }}>
+                {!showConfirm ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm(true)}
+                    className="btn-remove-avatar"
+                  >
+                    Remove Photo
+                  </button>
+                ) : (
+                  <div className="confirm-removal-box">
+                    <p style={{ fontSize: "11px", marginBottom: "6px", color: "var(--danger)", fontWeight: "600" }}>
+                      Are you sure?
+                    </p>
+                    <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+                      <button 
+                        type="button" 
+                        onClick={handleRemoveAvatar}
+                        className="btn-confirm-yes"
+                      >
+                        Yes
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => setShowConfirm(false)}
+                        className="btn-confirm-no"
+                      >
+                        No
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
             
             {/* Hidden mapped file hook */}
@@ -137,7 +156,7 @@ const ProfileModal = ({ user, isSelf, onClose, onSave }) => {
                 placeholder="What's on your mind?"
               />
             ) : (
-              <p style={{ background: "#f1f5f9", padding: "10px", borderRadius: "8px", color: bio ? "#333" : "#aaa", minHeight: "40px" }}>
+              <p style={{ background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "8px", color: bio ? "var(--text-primary)" : "var(--text-muted)", minHeight: "60px", border: "1px solid var(--border)" }}>
                 {bio || "This user hasn't written a bio yet."}
               </p>
             )}
@@ -176,16 +195,20 @@ const overlayStyle = {
 };
 
 const cardStyle = {
-  background: "#fff",
+  background: "var(--bg-elevated)",
+  backdropFilter: "blur(24px)",
+  WebkitBackdropFilter: "blur(24px)",
   padding: "24px",
-  borderRadius: "16px",
+  borderRadius: "24px",
   width: "90%",
-  maxWidth: "350px",
-  boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+  maxWidth: "380px",
+  boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+  border: "1px solid var(--border)",
   position: "relative",
   animation: "fadeIn 0.2s ease-out",
   display: "flex",
   flexDirection: "column",
+  color: "var(--text-primary)",
 };
 
 const closeBtnStyle = {
@@ -221,7 +244,7 @@ const avatarWrapperStyle = {
   overflow: "hidden",
   width: "90px",
   height: "90px",
-  border: "3px solid #eef2f6",
+  border: "3px solid var(--border)",
 };
 
 const avatarImgStyle = {
@@ -245,17 +268,19 @@ const avatarOverlayStyle = {
 
 const textareaStyle = {
   width: "100%",
-  padding: "10px",
+  padding: "12px",
   borderRadius: "8px",
-  border: "1px solid #ddd",
+  background: "rgba(0,0,0,0.3)",
+  color: "var(--text-primary)",
+  border: "1px solid var(--border)",
   resize: "none",
   outline: "none",
   fontFamily: "inherit",
 };
 
 const submitBtnStyle = {
-  padding: "10px 0",
-  background: "var(--primary)",
+  padding: "12px 0",
+  background: "var(--accent-gradient)",
   color: "white",
   border: "none",
   borderRadius: "8px",

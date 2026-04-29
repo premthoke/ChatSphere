@@ -39,8 +39,7 @@ export const AuthProvider = ({ children }) => {
         _clearSession();
       })
       .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount
+  }, [token]); // Re-fetch if token changes manually (rare)
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const _saveSession = (token, user) => {

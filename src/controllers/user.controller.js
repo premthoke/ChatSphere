@@ -109,10 +109,19 @@ const updateProfile = async (req, res, next) => {
       runValidators: true, // Run schema validators on update
     });
 
+    const publicProfile = updatedUser.toPublicProfile();
+
+    // ── Real-time Sync ──
+    // Notify all open tabs of the current user about the profile change
+    const io = req.app.get("socketio");
+    if (io) {
+      io.to(req.user._id.toString()).emit("user_updated", publicProfile);
+    }
+
     res.status(200).json({
       success: true,
       message: "Profile updated successfully.",
-      data: updatedUser.toPublicProfile(),
+      data: publicProfile,
     });
   } catch (err) {
     next(err);

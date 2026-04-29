@@ -21,7 +21,5 @@ export const getUserById = (userId) => api.get(`/users/${userId}`);
  * @param {Object|FormData} data 
  */
 export const updateProfile = (data) => {
-  const isForm = data instanceof FormData;
-  const config = isForm ? { headers: { "Content-Type": "multipart/form-data" } } : {};
-  return api.put("/users/profile", data, config);
+  return api.put("/users/profile", data);
 };

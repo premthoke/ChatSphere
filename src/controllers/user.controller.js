@@ -69,9 +69,6 @@ const updateProfile = async (req, res, next) => {
     const allowedFields = ["bio"];
     const updates = {};
 
-    console.log("Update Profile Request - Body:", req.body);
-    console.log("Update Profile Request - File:", req.file);
-
     // Whitelist only allowed text fields from the request body
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {

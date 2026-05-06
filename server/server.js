@@ -23,7 +23,7 @@ connectDB();
 const server = http.createServer(app);
 
 // ── 3. Attach Socket.IO to the same HTTP server ─────────────────────────────
-initSocket(server);
+initSocket(server, app);
 
 // ── 4. Start listening ───────────────────────────────────────────────────────
 server.listen(PORT, () => {

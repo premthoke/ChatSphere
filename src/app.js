@@ -83,6 +83,15 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/users", userRoutes);
 
 // ── 404 Handler ───────────────────────────────────────────────────────────────
+// In production, serve the React SPA for all non-API routes (client-side routing)
+if (process.env.NODE_ENV === "production") {
+  const clientBuildPath = path.join(__dirname, "../client/dist");
+  app.use(express.static(clientBuildPath));
+  app.get(/^(?!\/api).*/, (_req, res) => {
+    res.sendFile(path.join(clientBuildPath, "index.html"));
+  });
+}
+
 app.use(notFoundHandler);
 
 // ── Global Error Handler (must be last) ──────────────────────────────────────

@@ -109,7 +109,6 @@ const useChat = (selectedUser) => {
       if (!joinedRoomsRef.current.has(roomId)) {
         socket.emit("join_room", { roomId });
         joinedRoomsRef.current.add(roomId);
-        console.log(`[Socket] Joined active room: ${roomId}`);
       }
     };
 
@@ -160,7 +159,6 @@ const useChat = (selectedUser) => {
 
     // Reconnection Handler
     const handleConnect = () => {
-      console.log("[Socket] Reconnected - Refreshing state...");
       joinedRoomsRef.current.clear(); // Clear join cache to force re-emit
       joinActiveRoom();
       fetchMessages(); // Safe fetch with isFetchingRef guard
@@ -267,7 +265,7 @@ const useChat = (selectedUser) => {
     } finally {
       setSendingMsg(false);
     }
-  }, [selectedUser, socket, roomId]);
+  }, [selectedUser, socket, roomId, user, connected]);
 
   // ── Delete Message (Optimistic with Rollback) ──────────────────────────
   const deleteMsg = useCallback(async (messageId) => {

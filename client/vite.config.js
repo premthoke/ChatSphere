@@ -22,8 +22,18 @@ export default defineConfig({
       },
     },
   },
-  esbuild: {
-    // Drop console and debugger statements in production builds
-    drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
+  build: {
+    outDir: "dist",
+    sourcemap: false,
+  },
+  define: {
+    // Remove console/debugger in production builds
+    ...(process.env.NODE_ENV === "production"
+      ? {
+          "console.log": "(() => {})",
+          "console.debug": "(() => {})",
+          "console.info": "(() => {})",
+        }
+      : {}),
   },
 });

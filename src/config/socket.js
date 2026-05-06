@@ -26,7 +26,7 @@ const userSocketMap = new Map(); // Tracks active sockets: Map<userId, Set<socke
  * Attach Socket.IO to the HTTP server.
  * @param {import("http").Server} server
  */
-const initSocket = (server) => {
+const initSocket = (server, app) => {
   const allowedOrigins = [
     process.env.CLIENT_URL,
     process.env.CLIENT_ORIGIN,
@@ -165,6 +165,10 @@ const initSocket = (server) => {
   });
 
   logger.info("⚡ Socket.IO initialised");
+
+  // Attach io to Express app so controllers can do req.app.get("socketio")
+  if (app) app.set("socketio", io);
+
   return io;
 };
 

@@ -1,43 +1,70 @@
 /**
- * server.js — ChatSphere Application Entry Point
+ * server/server.js — ChatSphere Application Entry Point
  *
  * Bootstraps the Express app, connects to MongoDB,
  * attaches Socket.IO, and starts listening for connections.
  */
 
-const http = require("http");
-const app = require("./src/app");
-const connectDB = require("./src/config/db");
-const { initSocket } = require("./src/config/socket");
-const logger = require("./src/utils/logger");
-
-// Load environment variables (must be first)
+// ─────────────────────────────────────────────────────────────
+// Load environment variables FIRST
+// ─────────────────────────────────────────────────────────────
 require("dotenv").config();
 
+// ─────────────────────────────────────────────────────────────
+// Core Imports
+// ─────────────────────────────────────────────────────────────
+const http = require("http");
+
+const app = require("../src/app");
+const connectDB = require("../src/config/db");
+const { initSocket } = require("../src/config/socket");
+const logger = require("../src/utils/logger");
+
+// ─────────────────────────────────────────────────────────────
+// Environment Config
+// ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
-// ── 1. Connect to MongoDB ────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Connect MongoDB
+// ─────────────────────────────────────────────────────────────
 connectDB();
 
-// ── 2. Create native HTTP server (required by Socket.IO) ────────────────────
+// ─────────────────────────────────────────────────────────────
+// Create HTTP Server
+// ─────────────────────────────────────────────────────────────
 const server = http.createServer(app);
 
-// ── 3. Attach Socket.IO to the same HTTP server ─────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Initialize Socket.IO
+// ─────────────────────────────────────────────────────────────
 initSocket(server, app);
 
-// ── 4. Start listening ───────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Start Server
+// ─────────────────────────────────────────────────────────────
 server.listen(PORT, () => {
-  logger.info(`🚀 ChatSphere server running on port ${PORT} [${process.env.NODE_ENV}]`);
+  logger.info(
+    `🚀 ChatSphere server running on port ${PORT} [${process.env.NODE_ENV}]`
+  );
 });
 
-// ── 5. Handle unhandled promise rejections gracefully ────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Handle Unhandled Promise Rejections
+// ─────────────────────────────────────────────────────────────
 process.on("unhandledRejection", (err) => {
-  logger.error(`Unhandled Rejection: ${err.message}`);
-  server.close(() => process.exit(1));
+  logger.error(`❌ Unhandled Rejection: ${err.message}`);
+
+  server.close(() => {
+    process.exit(1);
+  });
 });
 
-// ── 6. Handle uncaught exceptions gracefully ─────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Handle Uncaught Exceptions
+// ─────────────────────────────────────────────────────────────
 process.on("uncaughtException", (err) => {
-  logger.error(`Uncaught Exception: ${err.message}`);
+  logger.error(`❌ Uncaught Exception: ${err.message}`);
+
   process.exit(1);
 });

@@ -78,9 +78,11 @@ const updateProfile = async (req, res, next) => {
 
     // Support Multer mapped physical local files natively!
     if (req.file) {
+      const { getFullUrl } = require("../utils/fileHelper");
       // Map it as a reliable URL pointing towards your local Express static files middleware
-      updates.avatar = `/uploads/${req.file.filename}`;
+      updates.avatar = getFullUrl(req, `/uploads/${req.file.filename}`);
     } else if (req.body.removeAvatar === "true" || req.body.removeAvatar === true) {
+
       // Explicitly remove the avatar if requested
       updates.avatar = "";
       

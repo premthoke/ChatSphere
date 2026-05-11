@@ -31,10 +31,12 @@ const sendMessage = async (req, res, next) => {
     let fileName = null;
 
     if (req.file) {
-      fileUrl = `/uploads/${req.file.filename}`;
+      const { getFullUrl } = require("../utils/fileHelper");
+      fileUrl = getFullUrl(req, `/uploads/${req.file.filename}`);
       fileName = req.file.originalname;
       
       // Determine type based on mimetype
+
       if (req.file.mimetype.startsWith("image/")) {
         type = "image";
       } else {

@@ -2,7 +2,7 @@
  * src/components/chat/MessageBubble.jsx
  * Renders a single message bubble (sent or received).
  */
-import { formatTime } from "../../utils/helpers";
+import { formatTime, resolveFileUrl } from "../../utils/helpers";
 import { useAuth } from "../../context/AuthContext";
 
 const MessageBubble = ({ message, onDelete }) => {
@@ -16,11 +16,14 @@ const MessageBubble = ({ message, onDelete }) => {
   const renderAttachment = () => {
     if (deleted || !message.fileUrl) return null;
 
+    const fullUrl = resolveFileUrl(message.fileUrl);
+
+
     if (message.type === "image") {
       return (
         <div className="message-image-container">
-          <a href={message.fileUrl} target="_blank" rel="noreferrer" download={message.fileName || "image"}>
-            <img src={message.fileUrl} alt="Attachment" className="message-image" />
+          <a href={fullUrl} target="_blank" rel="noreferrer" download={message.fileName || "image"}>
+            <img src={fullUrl} alt="Attachment" className="message-image" />
             <div className="message-image-overlay">
               <span>⬇ Download</span>
             </div>
@@ -31,7 +34,7 @@ const MessageBubble = ({ message, onDelete }) => {
 
     if (message.type === "file") {
       return (
-        <a href={message.fileUrl} target="_blank" rel="noreferrer" className="message-file-link">
+        <a href={fullUrl} target="_blank" rel="noreferrer" download={message.fileName || "file"} className="message-file-link">
           <div className="message-file-icon">📄</div>
           <div className="message-file-info">
             <span className="message-file-name">{message.fileName || "Download File"}</span>
@@ -42,6 +45,7 @@ const MessageBubble = ({ message, onDelete }) => {
     }
     return null;
   };
+
 
   return (
     <div className={`message-row ${isSent ? "sent" : "received"}`}>

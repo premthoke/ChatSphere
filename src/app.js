@@ -11,6 +11,9 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
+const fs = require("fs");
+const path = require("path");
+
 
 const authRoutes = require("./routes/auth.routes");
 const messageRoutes = require("./routes/message.routes");
@@ -21,11 +24,22 @@ require("dotenv").config();
 
 const app = express();
 
-// ── 1. Trust Proxy (Required for Heroku/Render/AWS) ──────────────────────────
 app.set("trust proxy", 1);
 
+// ── Ensure Uploads Directory Exists ──────────────────────────────────────────
+const uploadDir = path.join(__dirname, "../uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+
 // ── 2. Security Headers (Helmet sets sane HTTP response headers) ────────────────
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
+
 
 // ── 3. CORS (Secure dynamic origin validation) ───────────────────────────────
 const allowedOrigins = [

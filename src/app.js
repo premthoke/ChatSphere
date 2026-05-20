@@ -34,8 +34,14 @@ if (!fs.existsSync(uploadDir)) {
 
 
 // ── 2. Security Headers (Helmet sets sane HTTP response headers) ────────────────
+// crossOriginEmbedderPolicy: false — COEP would block cross-origin resource loading
+//   (images/files from Render in the Vercel-hosted frontend). Must be disabled when
+//   the frontend and backend are on different origins.
+// crossOriginResourcePolicy: cross-origin — explicitly allows any origin to embed
+//   the /uploads files (avatars, chat attachments).
 app.use(
   helmet({
+    crossOriginEmbedderPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
   })
 );
@@ -88,8 +94,22 @@ app.get("/api/health", (_req, res) => {
 });
 
 // ── Static Files (Multer Uploads) ─────────────────────────────────────────────
-const path = require("path");
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+// Serve uploaded files publicly from cross-origin frontends (e.g. Vercel).
+// We explicitly set both CORS and CORP headers here as a belt-and-suspenders
+// guarantee — Helmet sets them globally, but inline headers on the static
+// middleware ensure they survive any future middleware reordering.
+// Must be placed BEFORE /api routes so the rate-limiter never intercepts uploads.
+app.use(
+  "/uploads",
+  (_req, res, next) => {
+    // Allow any origin to fetch these files (avatars, chat images/docs)
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    // Let browsers embed these resources even under strict COEP policies
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
+  express.static(path.join(__dirname, "../uploads"))
+);
 
 // ── API Routes ────────────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);

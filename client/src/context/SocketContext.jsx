@@ -61,8 +61,14 @@ export const SocketProvider = ({ children }) => {
     const sock = io(SOCKET_URL, {
       auth: { token },
       transports: ["websocket"], // Force WebSocket for production
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
+      // Retry indefinitely — Render's free tier has ~50 s cold-start delays.
+      // Using Infinity ensures the client keeps trying until the server is up.
+      reconnectionAttempts: Infinity,
+      // Exponential back-off: start at 1 s, cap at 5 s, add jitter via
+      // reconnectionDelayMax so multiple tabs don't storm the server at once.
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      randomizationFactor: 0.5,
     });
 
     socketRef.current = sock;
@@ -74,6 +80,17 @@ export const SocketProvider = ({ children }) => {
     sock.on("connect_error", (err) => {
       console.warn("[Socket] Connection error:", err.message);
       setConnected(false);
+
+      // If the server rejects us with an auth error (invalid / expired token)
+      // there is no point in retrying — stop reconnection to avoid a storm.
+      if (
+        err.message === "Authentication token missing" ||
+        err.message === "Invalid or expired token"
+      ) {
+        console.warn("[Socket] Auth rejected — stopping reconnection.");
+        sock.io.opts.reconnectionAttempts = 0; // Disable further retries
+        sock.disconnect();
+      }
     });
 
     sock.on("userOnline", ({ userId }) => {

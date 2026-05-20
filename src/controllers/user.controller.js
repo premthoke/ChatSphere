@@ -86,16 +86,31 @@ const updateProfile = async (req, res, next) => {
       // Explicitly remove the avatar if requested
       updates.avatar = "";
       
-      // Optionally delete the physical file if it exists
-      if (req.user.avatar && req.user.avatar.startsWith("/uploads/")) {
-        const fs = require("fs");
-        const path = require("path");
-        const filePath = path.join(__dirname, "../../", req.user.avatar);
-        fs.unlink(filePath, (err) => {
-          if (err && err.code !== 'ENOENT') {
-            console.error(`Failed to delete old avatar file: ${filePath}`, err);
+      // Delete the physical file if it exists.
+      // The stored avatar may be an absolute URL (e.g. https://host/uploads/file.jpg)
+      // or a legacy relative path (/uploads/file.jpg). Extract just the filename so
+      // we can locate the file in the local uploads directory on disk.
+      const oldAvatar = req.user.avatar;
+      if (oldAvatar) {
+        let relPath = oldAvatar;
+        // Convert absolute URL → relative path
+        if (oldAvatar.startsWith("http://") || oldAvatar.startsWith("https://")) {
+          try {
+            relPath = new URL(oldAvatar).pathname; // e.g. /uploads/filename.jpg
+          } catch (_) {
+            relPath = null;
           }
-        });
+        }
+        if (relPath && relPath.startsWith("/uploads/")) {
+          const fs = require("fs");
+          const path = require("path");
+          const filePath = path.join(__dirname, "../../", relPath);
+          fs.unlink(filePath, (err) => {
+            if (err && err.code !== "ENOENT") {
+              console.error(`Failed to delete old avatar file: ${filePath}`, err);
+            }
+          });
+        }
       }
     }
 

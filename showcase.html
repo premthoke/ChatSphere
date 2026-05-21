@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ChatSphere — Real-Time Chat Application</title>
+  <meta name="description" content="ChatSphere is a production-grade real-time chat application built with React, Node.js, Socket.IO, and MongoDB. Features JWT auth, live typing indicators, read receipts, and file uploads." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Design Tokens ─────────────────────────────────────── */
+    :root {
+      --bg-base:       #09090f;
+      --bg-surface:    #12121e;
+      --bg-elevated:   #1a1a2e;
+      --bg-card:       #1e1e32;
+      --border:        rgba(124,58,237,0.18);
+      --border-glow:   rgba(124,58,237,0.5);
+      --accent:        #7c3aed;
+      --accent-light:  #a855f7;
+      --accent-dim:    rgba(124,58,237,0.15);
+      --teal:          #0ea5e9;
+      --green:         #22c55e;
+      --orange:        #f97316;
+      --text-primary:  #f1f0ff;
+      --text-secondary:#a89ec0;
+      --text-muted:    #5f5680;
+      --radius:        14px;
+      --shadow:        0 25px 60px rgba(0,0,0,0.7);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      line-height: 1.65;
+      overflow-x: hidden;
+    }
+
+    /* ── Noise Texture Overlay ─────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Animated Background Blobs ─────────────────────────── */
+    .bg-blobs {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.18;
+      animation: blobFloat 12s ease-in-out infinite alternate;
+    }
+    .blob-1 { width: 700px; height: 700px; background: #7c3aed; top: -200px; left: -200px; animation-duration: 14s; }
+    .blob-2 { width: 500px; height: 500px; background: #0ea5e9; bottom: -150px; right: -100px; animation-duration: 10s; animation-delay: -4s; }
+    .blob-3 { width: 400px; height: 400px; background: #a855f7; top: 40%; left: 50%; animation-duration: 16s; animation-delay: -8s; }
+
+    @keyframes blobFloat {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(40px, 30px) scale(1.1); }
+    }
+
+    /* ── Content Wrapper ───────────────────────────────────── */
+    main { position: relative; z-index: 1; }
+
+    /* ── Nav ───────────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 16px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(9,9,15,0.7);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 1.25rem;
+      letter-spacing: -0.5px;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+    .nav-logo .logo-icon {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, var(--accent), var(--teal));
+      border-radius: 9px;
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+    }
+    .nav-links { display: flex; gap: 32px; list-style: none; }
+    .nav-links a {
+      text-decoration: none;
+      color: var(--text-secondary);
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text-primary); }
+    .nav-btn {
+      padding: 9px 22px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      color: #fff;
+      border-radius: 9px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: opacity 0.2s, transform 0.2s;
+      box-shadow: 0 0 20px rgba(124,58,237,0.4);
+    }
+    .nav-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    /* ── Section Utilities ─────────────────────────────────── */
+    section { padding: 120px 48px; max-width: 1200px; margin: 0 auto; }
+    .section-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 14px;
+      border: 1px solid var(--border-glow);
+      border-radius: 100px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--accent-light);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+      background: var(--accent-dim);
+    }
+    h1, h2, h3 { letter-spacing: -0.5px; }
+    .gradient-text {
+      background: linear-gradient(135deg, #a855f7 0%, #7c3aed 40%, #0ea5e9 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ── Hero ──────────────────────────────────────────────── */
+    #hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding-top: 140px;
+      padding-bottom: 80px;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: rgba(124,58,237,0.12);
+      border: 1px solid rgba(124,58,237,0.35);
+      border-radius: 100px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--accent-light);
+      margin-bottom: 28px;
+      animation: fadeDown 0.6s ease both;
+    }
+    .hero-badge .dot {
+      width: 7px; height: 7px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse-green 1.5s infinite;
+    }
+    @keyframes pulse-green {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+      50%       { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+    }
+    .hero-title {
+      font-size: clamp(3rem, 7vw, 5.5rem);
+      font-weight: 900;
+      line-height: 1.05;
+      margin-bottom: 24px;
+      animation: fadeUp 0.7s 0.1s ease both;
+    }
+    .hero-sub {
+      font-size: 1.2rem;
+      color: var(--text-secondary);
+      max-width: 620px;
+      margin: 0 auto 40px;
+      animation: fadeUp 0.7s 0.2s ease both;
+    }
+    .hero-ctas {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 72px;
+      animation: fadeUp 0.7s 0.3s ease both;
+    }
+    .btn-primary {
+      padding: 14px 32px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      color: #fff;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      text-decoration: none;
+      box-shadow: 0 0 30px rgba(124,58,237,0.5);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 0 50px rgba(124,58,237,0.7); }
+    .btn-secondary {
+      padding: 14px 32px;
+      border: 1px solid var(--border-glow);
+      color: var(--text-primary);
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      text-decoration: none;
+      background: rgba(124,58,237,0.08);
+      transition: background 0.2s, transform 0.2s;
+    }
+    .btn-secondary:hover { background: rgba(124,58,237,0.18); transform: translateY(-3px); }
+
+    /* ── Hero Stats ────────────────────────────────────────── */
+    .hero-stats {
+      display: flex;
+      gap: 48px;
+      justify-content: center;
+      flex-wrap: wrap;
+      animation: fadeUp 0.7s 0.4s ease both;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-num {
+      font-size: 2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-light), var(--teal));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Preview Window ────────────────────────────────────── */
+    #preview { padding-top: 40px; }
+    .preview-wrapper {
+      position: relative;
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: 0 40px 100px rgba(0,0,0,0.8), 0 0 0 1px rgba(124,58,237,0.1);
+      animation: fadeUp 0.8s 0.5s ease both;
+    }
+    .preview-bar {
+      background: var(--bg-elevated);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .preview-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .preview-dot-r { background: #ff5f57; }
+    .preview-dot-y { background: #febc2e; }
+    .preview-dot-g { background: #28c840; }
+    .preview-url {
+      margin-left: 12px;
+      background: var(--bg-card);
+      border-radius: 6px;
+      padding: 4px 16px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-family: 'Fira Code', monospace;
+      flex: 1;
+      max-width: 340px;
+    }
+
+    /* ── Simulated Chat UI ─────────────────────────────────── */
+    .chat-sim {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      height: 520px;
+      background: var(--bg-surface);
+    }
+    /* Sidebar */
+    .chat-sidebar {
+      background: var(--bg-elevated);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .cs-header {
+      padding: 18px 16px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .cs-header h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .cs-search {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cs-user-list { overflow-y: auto; flex: 1; }
+    .cs-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(124,58,237,0.07);
+      transition: background 0.15s;
+    }
+    .cs-user:hover { background: rgba(124,58,237,0.08); }
+    .cs-user.active { background: rgba(124,58,237,0.18); }
+    .cs-avatar {
+      position: relative;
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--teal));
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      color: #fff;
+    }
+    .cs-online-dot {
+      position: absolute;
+      bottom: 1px; right: 1px;
+      width: 10px; height: 10px;
+      background: var(--green);
+      border-radius: 50%;
+      border: 2px solid var(--bg-elevated);
+    }
+    .cs-user-info { flex: 1; min-width: 0; }
+    .cs-user-name { font-size: 0.88rem; font-weight: 600; }
+    .cs-user-last { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cs-badge {
+      background: var(--accent);
+      color: #fff;
+      border-radius: 100px;
+      padding: 2px 7px;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+    /* Chat window */
+    .chat-window {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-surface);
+    }
+    .cw-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-elevated);
+    }
+    .cw-avatar {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #a855f7, #0ea5e9);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      color: #fff;
+      font-size: 0.85rem;
+      position: relative;
+    }
+    .cw-online { position: absolute; bottom: 1px; right: 1px; width: 10px; height: 10px; background: var(--green); border-radius: 50%; border: 2px solid var(--bg-elevated); }
+    .cw-user-info { flex: 1; }
+    .cw-user-name { font-size: 0.92rem; font-weight: 700; }
+    .cw-status { font-size: 0.75rem; color: var(--green); font-weight: 500; }
+    .cw-icons { display: flex; gap: 14px; color: var(--text-muted); font-size: 1rem; }
+    /* Messages */
+    .cw-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .msg-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+    }
+    .msg-row.sent { flex-direction: row-reverse; }
+    .msg-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #a855f7, #0ea5e9);
+      display: grid;
+      place-items: center;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .msg-bubble {
+      max-width: 340px;
+      padding: 10px 14px;
+      border-radius: 16px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      position: relative;
+    }
+    .msg-bubble.recv {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+    .msg-bubble.sent {
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .msg-meta { font-size: 0.7rem; color: var(--text-muted); margin-top: 4px; }
+    .msg-row.sent .msg-meta { text-align: right; }
+    .read-tick { color: var(--teal); }
+    /* Typing indicator */
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 0 4px;
+    }
+    .typing-dots {
+      display: flex;
+      gap: 4px;
+      background: var(--bg-card);
+      padding: 10px 14px;
+      border-radius: 16px;
+      border-bottom-left-radius: 4px;
+      border: 1px solid var(--border);
+    }
+    .typing-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      animation: typingBounce 1.2s infinite ease-in-out;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingBounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+      40%            { transform: translateY(-6px); opacity: 1; }
+    }
+    /* Input */
+    .cw-input {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-elevated);
+    }
+    .cw-input-field {
+      flex: 1;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.88rem;
+      color: var(--text-primary);
+      font-family: 'Inter', sans-serif;
+      outline: none;
+    }
+    .cw-input-field::placeholder { color: var(--text-muted); }
+    .cw-input-field:focus { border-color: var(--border-glow); }
+    .cw-send-btn {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      border: none;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: transform 0.15s;
+      font-size: 1rem;
+      color: #fff;
+    }
+    .cw-send-btn:hover { transform: scale(1.08); }
+
+    /* ── How It Works ──────────────────────────────────────── */
+    #how {
+      padding: 120px 48px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .how-header { text-align: center; margin-bottom: 64px; }
+    .how-header h2 { font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 800; margin-bottom: 14px; }
+    .how-header p { color: var(--text-secondary); font-size: 1.05rem; max-width: 520px; margin: 0 auto; }
+
+    .flow-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 0;
+      position: relative;
+    }
+    .flow-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 32px 24px;
+      position: relative;
+    }
+    .flow-step:not(:last-child)::after {
+      content: '→';
+      position: absolute;
+      right: -14px;
+      top: 52px;
+      font-size: 1.5rem;
+      color: var(--border-glow);
+    }
+    .flow-icon {
+      width: 60px; height: 60px;
+      border-radius: 16px;
+      background: var(--accent-dim);
+      border: 1px solid var(--border-glow);
+      display: grid;
+      place-items: center;
+      font-size: 1.6rem;
+      margin-bottom: 18px;
+      transition: transform 0.2s;
+    }
+    .flow-step:hover .flow-icon { transform: scale(1.1) rotate(3deg); }
+    .flow-step h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+    .flow-step p { font-size: 0.85rem; color: var(--text-secondary); }
+
+    /* ── Features ──────────────────────────────────────────── */
+    #features {
+      padding: 120px 48px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .features-header { text-align: center; margin-bottom: 64px; }
+    .features-header h2 { font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 800; margin-bottom: 14px; }
+    .features-header p { color: var(--text-secondary); font-size: 1.05rem; max-width: 520px; margin: 0 auto; }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+      position: relative;
+      overflow: hidden;
+    }
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--teal));
+      opacity: 0;
+      transition: opacity 0.25s;
+    }
+    .feature-card:hover {
+      border-color: var(--border-glow);
+      transform: translateY(-4px);
+      box-shadow: 0 20px 50px rgba(124,58,237,0.15);
+    }
+    .feature-card:hover::before { opacity: 1; }
+    .feat-icon {
+      width: 48px; height: 48px;
+      border-radius: 12px;
+      background: var(--accent-dim);
+      display: grid;
+      place-items: center;
+      font-size: 1.4rem;
+      margin-bottom: 16px;
+    }
+    .feature-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; }
+
+    /* ── Tech Stack ────────────────────────────────────────── */
+    #tech {
+      padding: 100px 48px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .tech-header { text-align: center; margin-bottom: 56px; }
+    .tech-header h2 { font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 800; margin-bottom: 14px; }
+    .tech-header p { color: var(--text-secondary); font-size: 1.05rem; max-width: 520px; margin: 0 auto; }
+
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+    }
+    .tech-pill {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 22px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      text-align: center;
+      font-size: 0.88rem;
+      font-weight: 600;
+      transition: border-color 0.2s, transform 0.2s;
+      cursor: default;
+    }
+    .tech-pill:hover { border-color: var(--border-glow); transform: translateY(-3px); }
+    .tech-pill .tech-icon { font-size: 2rem; }
+    .tech-pill .tech-name { color: var(--text-primary); }
+    .tech-pill .tech-role { font-size: 0.73rem; color: var(--text-muted); font-weight: 400; }
+
+    /* ── Architecture ──────────────────────────────────────── */
+    #arch {
+      padding: 100px 48px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .arch-header { text-align: center; margin-bottom: 56px; }
+    .arch-header h2 { font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 800; margin-bottom: 14px; }
+    .arch-header p { color: var(--text-secondary); font-size: 1.05rem; max-width: 520px; margin: 0 auto; }
+
+    .arch-diagram {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 0;
+      align-items: center;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 48px 40px;
+    }
+    .arch-node {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-glow);
+      border-radius: 16px;
+      padding: 24px 20px;
+      text-align: center;
+    }
+    .arch-node-icon { font-size: 2.5rem; margin-bottom: 10px; }
+    .arch-node-title { font-size: 0.95rem; font-weight: 700; margin-bottom: 6px; }
+    .arch-node-list {
+      list-style: none;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .arch-node-list li::before { content: '• '; color: var(--accent-light); }
+    .arch-arrow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px;
+    }
+    .arch-arrow-line {
+      width: 80px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--teal));
+      position: relative;
+    }
+    .arch-arrow-line::after {
+      content: '';
+      position: absolute;
+      right: -1px;
+      top: -4px;
+      border: 5px solid transparent;
+      border-left-color: var(--teal);
+    }
+    .arch-arrow-labels {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .arch-arrow-label {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      background: var(--bg-base);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    /* ── API Endpoints ─────────────────────────────────────── */
+    #api {
+      padding: 100px 48px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .api-header { text-align: center; margin-bottom: 56px; }
+    .api-header h2 { font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 800; margin-bottom: 14px; }
+    .api-header p { color: var(--text-secondary); font-size: 1.05rem; max-width: 520px; margin: 0 auto; }
+
+    .api-table-wrap {
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    thead { background: var(--bg-elevated); }
+    thead th {
+      padding: 14px 20px;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-secondary);
+    }
+    tbody tr {
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    tbody tr:hover { background: var(--bg-elevated); }
+    td { padding: 13px 20px; }
+    .method-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      font-family: 'Fira Code', monospace;
+    }
+    .method-get    { background: rgba(14,165,233,0.15); color: #38bdf8; }
+    .method-post   { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .method-put    { background: rgba(249,115,22,0.15); color: #fb923c; }
+    .method-delete { background: rgba(239,68,68,0.15); color: #f87171; }
+    .endpoint-path {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.82rem;
+      color: var(--text-primary);
+    }
+    .auth-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.72rem;
+      color: var(--accent-light);
+      background: var(--accent-dim);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    /* ── Socket Events ─────────────────────────────────────── */
+    #sockets {
+      padding: 100px 48px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .sockets-header { text-align: center; margin-bottom: 56px; }
+    .sockets-header h2 { font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 800; margin-bottom: 14px; }
+    .sockets-header p { color: var(--text-secondary); font-size: 1.05rem; max-width: 520px; margin: 0 auto; }
+
+    .events-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .events-col h3 {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .event-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      margin-bottom: 10px;
+      transition: border-color 0.2s;
+    }
+    .event-item:hover { border-color: var(--border-glow); }
+    .event-name {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent-light);
+    }
+    .event-desc { font-size: 0.8rem; color: var(--text-secondary); }
+
+    /* ── Footer ────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 48px;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+    .footer-logo {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, var(--accent-light), var(--teal));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+    }
+    .footer-sub { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; }
+    .footer-tags { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .footer-tag {
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      background: var(--accent-dim);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* ── Animations ────────────────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Scroll-reveal */
+    .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── Responsive ────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      nav { padding: 14px 20px; }
+      .nav-links { display: none; }
+      section, #how, #features, #tech, #arch, #api, #sockets { padding: 80px 20px; }
+      footer { padding: 32px 20px; }
+      .chat-sim { grid-template-columns: 1fr; }
+      .chat-sidebar { display: none; }
+      .flow-step:not(:last-child)::after { display: none; }
+      .arch-diagram { grid-template-columns: 1fr; gap: 20px; }
+      .arch-arrow { transform: rotate(90deg); padding: 10px 0; }
+      .events-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Scrollbar ─────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-base); }
+    ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 99px; }
+  </style>
+</head>
+<body>
+
+<!-- Background -->
+<div class="bg-blobs" aria-hidden="true">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+</div>
+
+<!-- Nav -->
+<nav>
+  <a href="#hero" class="nav-logo">
+    <span class="logo-icon">💬</span>
+    ChatSphere
+  </a>
+  <ul class="nav-links">
+    <li><a href="#preview">Preview</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#tech">Stack</a></li>
+    <li><a href="#arch">Architecture</a></li>
+    <li><a href="#api">API</a></li>
+  </ul>
+  <a href="https://github.com/premthoke/ChatSphere" class="nav-btn" id="github-btn" target="_blank">⭐ GitHub</a>
+</nav>
+
+<main>
+
+  <!-- ── Hero ────────────────────────────────────────────────── -->
+  <section id="hero">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      Production-Ready Real-Time Chat
+    </div>
+    <h1 class="hero-title">
+      <span class="gradient-text">ChatSphere</span><br />
+      Connect. Converse.<br/>In Real Time.
+    </h1>
+    <p class="hero-sub">
+      A full-stack chat application powered by Socket.IO WebSockets, JWT authentication, MongoDB, and a sleek React UI — built for speed, scale, and security.
+    </p>
+    <div class="hero-ctas">
+      <a href="#preview" class="btn-primary" id="see-demo-btn">🚀 See It Live</a>
+      <a href="#features" class="btn-secondary" id="explore-features-btn">Explore Features →</a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat">
+        <div class="stat-num">⚡ Real-Time</div>
+        <div class="stat-label">WebSocket Events</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">🔒 JWT</div>
+        <div class="stat-label">Auth + bcrypt</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">🌐 REST + WS</div>
+        <div class="stat-label">Dual API</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">📦 MongoDB</div>
+        <div class="stat-label">Persistent Storage</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Live Preview ─────────────────────────────────────────── -->
+  <div id="preview" style="max-width:1200px; margin:0 auto; padding: 0 48px 80px;">
+    <div style="text-align:center; margin-bottom:32px;">
+      <div class="section-tag reveal">🎨 Live Preview</div>
+      <h2 style="font-size:clamp(2rem,4vw,2.8rem); font-weight:800; margin-bottom:12px;" class="reveal">What It Looks Like</h2>
+      <p style="color:var(--text-secondary); font-size:1.05rem;" class="reveal">A clean, dark-themed chat interface with real-time message delivery, typing indicators, and online presence.</p>
+    </div>
+
+    <div class="preview-wrapper reveal">
+      <div class="preview-bar">
+        <div class="preview-dot preview-dot-r"></div>
+        <div class="preview-dot preview-dot-y"></div>
+        <div class="preview-dot preview-dot-g"></div>
+        <div class="preview-url">localhost:5173/chat</div>
+      </div>
+
+      <!-- Simulated Chat UI -->
+      <div class="chat-sim">
+        <!-- Sidebar -->
+        <div class="chat-sidebar">
+          <div class="cs-header">
+            <h3>Messages</h3>
+            <div class="cs-search">🔍 Search conversations…</div>
+          </div>
+          <div class="cs-user-list">
+            <div class="cs-user active" id="user-alex">
+              <div class="cs-avatar">A<span class="cs-online-dot"></span></div>
+              <div class="cs-user-info">
+                <div class="cs-user-name">Alex Johnson</div>
+                <div class="cs-user-last">Hey! Are you free tonight?</div>
+              </div>
+              <span class="cs-badge">2</span>
+            </div>
+            <div class="cs-user" id="user-sara">
+              <div class="cs-avatar" style="background:linear-gradient(135deg,#f97316,#ef4444)">S<span class="cs-online-dot"></span></div>
+              <div class="cs-user-info">
+                <div class="cs-user-name">Sara Miller</div>
+                <div class="cs-user-last">The meeting's at 3pm 📅</div>
+              </div>
+            </div>
+            <div class="cs-user" id="user-raj">
+              <div class="cs-avatar" style="background:linear-gradient(135deg,#0ea5e9,#22c55e)">R</div>
+              <div class="cs-user-info">
+                <div class="cs-user-name">Raj Patel</div>
+                <div class="cs-user-last">Cool project! 🔥</div>
+              </div>
+            </div>
+            <div class="cs-user" id="user-mei">
+              <div class="cs-avatar" style="background:linear-gradient(135deg,#ec4899,#8b5cf6)">M</div>
+              <div class="cs-user-info">
+                <div class="cs-user-name">Mei Zhang</div>
+                <div class="cs-user-last">Thanks for the help!</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat Window -->
+        <div class="chat-window">
+          <div class="cw-header">
+            <div class="cw-avatar">A<span class="cw-online"></span></div>
+            <div class="cw-user-info">
+              <div class="cw-user-name">Alex Johnson</div>
+              <div class="cw-status">● Online</div>
+            </div>
+            <div class="cw-icons">📞 📷 ⋮</div>
+          </div>
+
+          <div class="cw-messages" id="chat-messages">
+            <!-- Recv -->
+            <div class="msg-row">
+              <div class="msg-avatar">A</div>
+              <div>
+                <div class="msg-bubble recv">Hey! How's the ChatSphere project going? 🚀</div>
+                <div class="msg-meta">10:42 AM</div>
+              </div>
+            </div>
+            <!-- Sent -->
+            <div class="msg-row sent">
+              <div>
+                <div class="msg-bubble sent">It's going great! Just wired up Socket.IO — real-time messages are working perfectly!</div>
+                <div class="msg-meta">10:43 AM <span class="read-tick">✓✓</span></div>
+              </div>
+            </div>
+            <!-- Recv -->
+            <div class="msg-row">
+              <div class="msg-avatar">A</div>
+              <div>
+                <div class="msg-bubble recv">That's awesome 🔥 Does it handle typing indicators too?</div>
+                <div class="msg-meta">10:43 AM</div>
+              </div>
+            </div>
+            <!-- Sent -->
+            <div class="msg-row sent">
+              <div>
+                <div class="msg-bubble sent">Yes! Typing events, read receipts, online/offline presence — all live via WebSockets 💪</div>
+                <div class="msg-meta">10:44 AM <span class="read-tick">✓✓</span></div>
+              </div>
+            </div>
+            <!-- Recv -->
+            <div class="msg-row">
+              <div class="msg-avatar">A</div>
+              <div>
+                <div class="msg-bubble recv">Wow, JWT auth too? 😮</div>
+                <div class="msg-meta">10:45 AM</div>
+              </div>
+            </div>
+            <!-- Sent -->
+            <div class="msg-row sent">
+              <div>
+                <div class="msg-bubble sent">Yep! JWT + bcrypt, helmet security, rate limiting — production ready! 🛡️</div>
+                <div class="msg-meta">10:45 AM <span class="read-tick">✓✓</span></div>
+              </div>
+            </div>
+            <!-- Typing -->
+            <div class="typing-indicator" id="typing-row">
+              <div class="msg-avatar">A</div>
+              <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cw-input">
+            <span style="font-size:1.2rem; cursor:pointer" title="Attach file">📎</span>
+            <input class="cw-input-field" id="demo-input" type="text" placeholder="Type a message…" />
+            <button class="cw-send-btn" id="demo-send" title="Send">➤</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Demo interaction note -->
+    <p style="text-align:center; margin-top:18px; font-size:0.85rem; color:var(--text-muted);">
+      💡 Try typing in the input above — the preview is interactive!
+    </p>
+  </div>
+
+  <!-- ── How It Works ─────────────────────────────────────────── -->
+  <div id="how">
+    <div class="how-header reveal">
+      <div class="section-tag">⚙️ Flow</div>
+      <h2>How <span class="gradient-text">ChatSphere</span> Works</h2>
+      <p>From authentication to real-time delivery — follow the journey of a message.</p>
+    </div>
+    <div class="flow-grid">
+      <div class="flow-step reveal">
+        <div class="flow-icon">🔐</div>
+        <h3>Register / Login</h3>
+        <p>User registers with username, email & password. bcrypt hashes the password. JWT token issued on login.</p>
+      </div>
+      <div class="flow-step reveal">
+        <div class="flow-icon">🔌</div>
+        <h3>WebSocket Connect</h3>
+        <p>Client connects to Socket.IO with JWT in handshake. Server verifies token before allowing connection.</p>
+      </div>
+      <div class="flow-step reveal">
+        <div class="flow-icon">💬</div>
+        <h3>Join Chat Room</h3>
+        <p>User selects a contact. Both join a unique room (sorted user IDs). Messages routed to that room only.</p>
+      </div>
+      <div class="flow-step reveal">
+        <div class="flow-icon">📨</div>
+        <h3>Send &amp; Receive</h3>
+        <p>Message sent via REST → saved to MongoDB → emitted via Socket.IO → received in real time by recipient.</p>
+      </div>
+      <div class="flow-step reveal">
+        <div class="flow-icon">✅</div>
+        <h3>Read Receipts</h3>
+        <p>Messages marked read → DB updated → Socket emits read event → blue double ticks update for sender.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Features ─────────────────────────────────────────────── -->
+  <div id="features">
+    <div class="features-header reveal">
+      <div class="section-tag">✨ Features</div>
+      <h2>Everything You <span class="gradient-text">Need</span></h2>
+      <p>A complete, production-grade feature set — from security to real-time presence.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card reveal">
+        <div class="feat-icon">⚡</div>
+        <h3>Real-Time Messaging</h3>
+        <p>Bi-directional WebSocket communication via Socket.IO. Messages arrive instantly without page refresh.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feat-icon">🔐</div>
+        <h3>JWT Authentication</h3>
+        <p>Stateless authentication with JSON Web Tokens. Passwords hashed with bcryptjs. Tokens expire for security.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feat-icon">🟢</div>
+        <h3>Online Presence</h3>
+        <p>Live online/offline indicators. Last seen timestamps. Users tracked with a socket map for multi-tab support.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feat-icon">✍️</div>
+        <h3>Typing Indicators</h3>
+        <p>Real-time typing notifications. <code>typing</code> and <code>stop_typing</code> socket events update the UI instantly.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feat-icon">✅</div>
+        <h3>Read Receipts</h3>
+        <p>Messages marked as read when the recipient opens the conversation. Unread counts auto-clear.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feat-icon">📁</div>
+        <h3>File Uploads</h3>
+        <p>Multer-powered file attachment support. Files stored in the uploads directory with size/type validation.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feat-icon">🛡️</div>
+        <h3>Security Hardened</h3>
+        <p>Helmet HTTP headers, CORS policies, express-rate-limit to prevent abuse, input validation with express-validator.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feat-icon">📊</div>
+        <h3>Winston Logging</h3>
+        <p>Structured production logging with Winston. Connection events, errors, and business events all logged.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feat-icon">📱</div>
+        <h3>Responsive UI</h3>
+        <p>Mobile-friendly React + Vite frontend. Sidebar collapses on mobile. Smooth transitions and animations.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tech Stack ────────────────────────────────────────────── -->
+  <div id="tech">
+    <div class="tech-header reveal">
+      <div class="section-tag">🛠️ Stack</div>
+      <h2>Built With <span class="gradient-text">Modern Tech</span></h2>
+      <p>Hand-picked tools for performance, developer experience, and reliability.</p>
+    </div>
+    <div class="tech-grid">
+      <div class="tech-pill reveal">
+        <span class="tech-icon">⚛️</span>
+        <span class="tech-name">React 18</span>
+        <span class="tech-role">UI Framework</span>
+      </div>
+      <div class="tech-pill reveal">
+        <span class="tech-icon">⚡</span>
+        <span class="tech-name">Vite</span>
+        <span class="tech-role">Build Tool</span>
+      </div>
+      <div class="tech-pill reveal">
+        <span class="tech-icon">🟢</span>
+        <span class="tech-name">Node.js</span>
+        <span class="tech-role">Runtime (v18)</span>
+      </div>
+      <div class="tech-pill reveal">
+        <span class="tech-icon">🚂</span>
+        <span class="tech-name">Express</span>
+        <span class="tech-role">HTTP Server</span>
+      </div>
+      <div class="tech-pill reveal">
+        <span class="tech-icon">🔌</span>
+        <span class="tech-name">Socket.IO</span>
+        <span class="tech-role">WebSockets</span>
+      </div>
+      <div class="tech-pill reveal">
+        <span class="tech-icon">🍃</span>
+        <span class="tech-name">MongoDB</span>
+        <span class="tech-role">Database</span>
+      </div>
+      <div class="tech-pill reveal">
+        <span class="tech-icon">🔷</span>
+        <span class="tech-name">Mongoose</span>
+        <span class="tech-role">ODM</span>
+      </div>
+      <div class="tech-pill reveal">
+        <span class="tech-icon">🔑</span>
+        <span class="tech-name">JWT</span>
+        <span class="tech-role">Authentication</span>
+      </div>
+      <div class="tech-pill reveal">
+        <span class="tech-icon">🔒</span>
+        <span class="tech-name">bcryptjs</span>
+        <span class="tech-role">Password Hashing</span>
+      </div>
+      <div class="tech-pill reveal">
+        <span class="tech-icon">🪖</span>
+        <span class="tech-name">Helmet</span>
+        <span class="tech-role">HTTP Security</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Architecture ──────────────────────────────────────────── -->
+  <div id="arch">
+    <div class="arch-header reveal">
+      <div class="section-tag">🏗️ Architecture</div>
+      <h2>System <span class="gradient-text">Architecture</span></h2>
+      <p>A clean three-tier architecture connecting the browser to persistent storage.</p>
+    </div>
+    <div class="arch-diagram reveal">
+      <!-- Client -->
+      <div class="arch-node">
+        <div class="arch-node-icon">🖥️</div>
+        <div class="arch-node-title">React Client</div>
+        <ul class="arch-node-list">
+          <li>React 18 + Vite</li>
+          <li>Socket.IO Client</li>
+          <li>React Router v6</li>
+          <li>Context API</li>
+          <li>Custom Hooks</li>
+        </ul>
+      </div>
+      <!-- Arrow 1 -->
+      <div class="arch-arrow">
+        <div class="arch-arrow-line"></div>
+        <div class="arch-arrow-labels">
+          <span class="arch-arrow-label">REST HTTP</span>
+          <span class="arch-arrow-label">WebSocket</span>
+        </div>
+      </div>
+      <!-- Server -->
+      <div class="arch-node" style="border-color: rgba(14,165,233,0.5);">
+        <div class="arch-node-icon">⚙️</div>
+        <div class="arch-node-title">Node.js Backend</div>
+        <ul class="arch-node-list">
+          <li>Express REST API</li>
+          <li>Socket.IO Server</li>
+          <li>JWT Middleware</li>
+          <li>Helmet + Rate Limit</li>
+          <li>Multer (uploads)</li>
+          <li>Winston Logger</li>
+        </ul>
+      </div>
+      <!-- Arrow 2 -->
+      <div class="arch-arrow">
+        <div class="arch-arrow-line" style="background: linear-gradient(90deg, #0ea5e9, #22c55e);"></div>
+        <div class="arch-arrow-labels">
+          <span class="arch-arrow-label">Mongoose ODM</span>
+        </div>
+      </div>
+      <!-- Database -->
+      <div class="arch-node" style="border-color: rgba(34,197,94,0.5);">
+        <div class="arch-node-icon">🍃</div>
+        <div class="arch-node-title">MongoDB Atlas</div>
+        <ul class="arch-node-list">
+          <li>Users collection</li>
+          <li>Messages collection</li>
+          <li>Conversations</li>
+          <li>Indexed queries</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── API Endpoints ─────────────────────────────────────────── -->
+  <div id="api">
+    <div class="api-header reveal">
+      <div class="section-tag">📡 API</div>
+      <h2>REST <span class="gradient-text">Endpoints</span></h2>
+      <p>Clean, versioned REST routes for authentication, users, and messages.</p>
+    </div>
+    <div class="api-table-wrap reveal">
+      <table>
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Endpoint</th>
+            <th>Description</th>
+            <th>Auth</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="method-badge method-post">POST</span></td>
+            <td><span class="endpoint-path">/api/auth/register</span></td>
+            <td>Register new user with validation</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-post">POST</span></td>
+            <td><span class="endpoint-path">/api/auth/login</span></td>
+            <td>Login and receive JWT token</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-post">POST</span></td>
+            <td><span class="endpoint-path">/api/auth/logout</span></td>
+            <td>Logout and invalidate session</td>
+            <td><span class="auth-tag">🔑 JWT</span></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-get">GET</span></td>
+            <td><span class="endpoint-path">/api/users</span></td>
+            <td>List all users (for sidebar)</td>
+            <td><span class="auth-tag">🔑 JWT</span></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-get">GET</span></td>
+            <td><span class="endpoint-path">/api/users/:id</span></td>
+            <td>Get user profile by ID</td>
+            <td><span class="auth-tag">🔑 JWT</span></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-put">PUT</span></td>
+            <td><span class="endpoint-path">/api/users/profile</span></td>
+            <td>Update avatar, username, bio</td>
+            <td><span class="auth-tag">🔑 JWT</span></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-get">GET</span></td>
+            <td><span class="endpoint-path">/api/messages/:roomId</span></td>
+            <td>Fetch paginated message history</td>
+            <td><span class="auth-tag">🔑 JWT</span></td>
+          </tr>
+          <tr>
+            <td><span class="method-badge method-post">POST</span></td>
+            <td><span class="endpoint-path">/api/messages/send</span></td>
+            <td>Send a message (saves + emits socket)</td>
+            <td><span class="auth-tag">🔑 JWT</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Socket Events ──────────────────────────────────────────── -->
+  <div id="sockets">
+    <div class="sockets-header reveal">
+      <div class="section-tag">🔌 WebSockets</div>
+      <h2>Socket.IO <span class="gradient-text">Events</span></h2>
+      <p>Real-time event-driven communication between client and server.</p>
+    </div>
+    <div class="events-grid">
+      <!-- Client → Server -->
+      <div class="events-col reveal">
+        <h3>📤 Client → Server</h3>
+        <div class="event-item">
+          <span class="event-name">join_room</span>
+          <span class="event-desc">Client joins a chat room using sorted user IDs as room key.</span>
+        </div>
+        <div class="event-item">
+          <span class="event-name">typing</span>
+          <span class="event-desc">Emitted while user is typing. Broadcasts to room participants.</span>
+        </div>
+        <div class="event-item">
+          <span class="event-name">stop_typing</span>
+          <span class="event-desc">Emitted when user stops typing or sends message.</span>
+        </div>
+        <div class="event-item">
+          <span class="event-name">mark_read</span>
+          <span class="event-desc">Marks all unread messages in a room as read. Updates DB + clears badge.</span>
+        </div>
+      </div>
+      <!-- Server → Client -->
+      <div class="events-col reveal">
+        <h3>📥 Server → Client</h3>
+        <div class="event-item">
+          <span class="event-name">newMessage</span>
+          <span class="event-desc">Broadcasts new message to all room members in real time.</span>
+        </div>
+        <div class="event-item">
+          <span class="event-name">userOnline / userOffline</span>
+          <span class="event-desc">Broadcasts presence changes to all connected clients with lastSeen.</span>
+        </div>
+        <div class="event-item">
+          <span class="event-name">user_typing / user_stopped_typing</span>
+          <span class="event-desc">Delivered to room members to show/hide typing indicator UI.</span>
+        </div>
+        <div class="event-item">
+          <span class="event-name">messages_read</span>
+          <span class="event-desc">Tells sender their messages were read. Triggers double-tick update.</span>
+        </div>
+        <div class="event-item">
+          <span class="event-name">conversationUpdated</span>
+          <span class="event-desc">Syncs sidebar: updates unread count, last message, and timestamp.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-logo">ChatSphere</div>
+  <p class="footer-sub">Real-Time Chat · Built by Prem Thoke · MIT License</p>
+  <div class="footer-tags">
+    <span class="footer-tag">Node.js</span>
+    <span class="footer-tag">React</span>
+    <span class="footer-tag">Socket.IO</span>
+    <span class="footer-tag">MongoDB</span>
+    <span class="footer-tag">JWT</span>
+    <span class="footer-tag">Express</span>
+    <span class="footer-tag">Vite</span>
+  </div>
+</footer>
+
+<script>
+  // ── Scroll Reveal ───────────────────────────────────────────
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  // ── Interactive Demo ─────────────────────────────────────────
+  const input    = document.getElementById('demo-input');
+  const sendBtn  = document.getElementById('demo-send');
+  const messages = document.getElementById('chat-messages');
+  const typingRow = document.getElementById('typing-row');
+
+  function appendSentMessage(text) {
+    const row = document.createElement('div');
+    row.className = 'msg-row sent';
+    row.innerHTML = `
+      <div>
+        <div class="msg-bubble sent">${text}</div>
+        <div class="msg-meta">just now <span class="read-tick">✓✓</span></div>
+      </div>`;
+    messages.insertBefore(row, typingRow);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function appendRecvMessage(text) {
+    const row = document.createElement('div');
+    row.className = 'msg-row';
+    row.innerHTML = `
+      <div class="msg-avatar">A</div>
+      <div>
+        <div class="msg-bubble recv">${text}</div>
+        <div class="msg-meta">just now</div>
+      </div>`;
+    messages.insertBefore(row, typingRow);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  const replies = [
+    "That sounds amazing! 🎉",
+    "Wow, this is super cool! 🚀",
+    "You're building something great here! 💪",
+    "I love how real-time this is! ⚡",
+    "Socket.IO makes this so smooth! 🔌",
+    "Production-ready stuff right there! 🏆",
+  ];
+  let replyIdx = 0;
+
+  function sendMessage() {
+    const text = input.value.trim();
+    if (!text) return;
+    appendSentMessage(text);
+    input.value = '';
+    // Simulate reply after delay
+    typingRow.style.display = 'flex';
+    setTimeout(() => {
+      typingRow.style.display = 'none';
+      appendRecvMessage(replies[replyIdx % replies.length]);
+      replyIdx++;
+      typingRow.style.display = 'flex';
+    }, 1500);
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+  // Scroll chat to bottom initially
+  messages.scrollTop = messages.scrollHeight;
+
+  // ── Sidebar user switching ────────────────────────────────────
+  document.querySelectorAll('.cs-user').forEach(u => {
+    u.addEventListener('click', () => {
+      document.querySelectorAll('.cs-user').forEach(x => x.classList.remove('active'));
+      u.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

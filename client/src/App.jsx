@@ -1,13 +1,3 @@
-/**
- * src/App.jsx — Root Application Router
- *
- * Sets up React Router routes:
- *   /            → redirect to /chat
- *   /login       → LoginPage  (public)
- *   /register    → RegisterPage (public)
- *   /chat        → ChatPage (protected — requires auth)
- */
-
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "./context/AuthContext";

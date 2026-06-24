@@ -9,7 +9,12 @@
 
 const express = require("express");
 const { body } = require("express-validator");
-const { register, login, getMe, logout } = require("../controllers/auth.controller");
+const {
+  register,
+  login,
+  getMe,
+  logout,
+} = require("../controllers/auth.controller");
 const { protect } = require("../middleware/auth.middleware");
 const validate = require("../middleware/validate.middleware");
 const rateLimit = require("express-rate-limit");
@@ -17,42 +22,79 @@ const rateLimit = require("express-rate-limit");
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  message: { success: false, message: "Too many login/register attempts. Try again in 15 mins." },
+  message: {
+    success: false,
+    message: "Too many login/register attempts. Try again in 15 mins.",
+  },
 });
 
 const router = express.Router();
+
+// ── Reserved Usernames ────────────────────────────────────────────────────────
+// These usernames are allowed even if they don't meet the normal length rule.
+const RESERVED_ALLOWED = ["ts", "admin", "owner"];
 
 // ── Validation Rules ──────────────────────────────────────────────────────────
 
 const registerRules = [
   body("username")
     .trim()
-    .notEmpty().withMessage("Username is required.")
-    .isLength({ min: 3, max: 30 }).withMessage("Username must be 3–30 characters.")
-    .matches(/^[a-zA-Z0-9_]+$/).withMessage("Username can only contain letters, numbers, and underscores."),
+    .notEmpty()
+    .withMessage("Username is required.")
+    .custom((value) => {
+      const username = value.toLowerCase().trim();
+
+      // Allow reserved usernames
+      if (RESERVED_ALLOWED.includes(username)) {
+        return true;
+      }
+
+      // Normal username length validation
+      if (username.length < 3 || username.length > 30) {
+        throw new Error("Username must be 3–30 characters.");
+      }
+
+      // Only letters, numbers and underscores
+      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        throw new Error(
+          "Username can only contain letters, numbers, and underscores."
+        );
+      }
+
+      return true;
+    }),
 
   body("email")
     .trim()
-    .notEmpty().withMessage("Email is required.")
-    .isEmail().withMessage("Please provide a valid email.")
+    .notEmpty()
+    .withMessage("Email is required.")
+    .isEmail()
+    .withMessage("Please provide a valid email.")
     .normalizeEmail(),
 
   body("password")
-    .notEmpty().withMessage("Password is required.")
-    .isLength({ min: 8 }).withMessage("Password must be at least 8 characters.")
+    .notEmpty()
+    .withMessage("Password is required.")
+    .isLength({ min: 8 })
+    .withMessage("Password must be at least 8 characters.")
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage("Password must contain at least one uppercase letter, one lowercase letter, and one number."),
+    .withMessage(
+      "Password must contain at least one uppercase letter, one lowercase letter, and one number."
+    ),
 ];
 
 const loginRules = [
   body("email")
     .trim()
-    .notEmpty().withMessage("Email is required.")
-    .isEmail().withMessage("Please provide a valid email.")
+    .notEmpty()
+    .withMessage("Email is required.")
+    .isEmail()
+    .withMessage("Please provide a valid email.")
     .normalizeEmail(),
 
   body("password")
-    .notEmpty().withMessage("Password is required."),
+    .notEmpty()
+    .withMessage("Password is required."),
 ];
 
 // ── Routes ────────────────────────────────────────────────────────────────────

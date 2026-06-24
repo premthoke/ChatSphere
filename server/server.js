@@ -19,16 +19,20 @@ const app = require("../src/app");
 const connectDB = require("../src/config/db");
 const { initSocket } = require("../src/config/socket");
 const logger = require("../src/utils/logger");
+const seedAdmin = require("../src/utils/seedAdmin");
 
 // ─────────────────────────────────────────────────────────────
 // Environment Config
 // ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
-// ─────────────────────────────────────────────────────────────
-// Connect MongoDB
-// ─────────────────────────────────────────────────────────────
-connectDB();
+// ───────────────────────────────────────────────────────────────
+// Connect MongoDB, then run startup seeds
+// ───────────────────────────────────────────────────────────────
+connectDB().then(() => {
+  // Run admin seeder after DB is connected
+  seedAdmin();
+});
 
 // ─────────────────────────────────────────────────────────────
 // Create HTTP Server

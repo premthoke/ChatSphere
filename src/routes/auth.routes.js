@@ -18,6 +18,7 @@ const {
 const { protect } = require("../middleware/auth.middleware");
 const validate = require("../middleware/validate.middleware");
 const rateLimit = require("express-rate-limit");
+const { validateUsername } = require("../utils/constants");
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -30,10 +31,6 @@ const authLimiter = rateLimit({
 
 const router = express.Router();
 
-// ── Reserved Usernames ────────────────────────────────────────────────────────
-// These usernames are allowed even if they don't meet the normal length rule.
-const RESERVED_ALLOWED = ["ts", "admin", "owner"];
-
 // ── Validation Rules ──────────────────────────────────────────────────────────
 
 const registerRules = [
@@ -42,25 +39,10 @@ const registerRules = [
     .notEmpty()
     .withMessage("Username is required.")
     .custom((value) => {
-      const username = value.toLowerCase().trim();
-
-      // Allow reserved usernames
-      if (RESERVED_ALLOWED.includes(username)) {
-        return true;
-      }
-
-      // Normal username length validation
-      if (username.length < 3 || username.length > 30) {
-        throw new Error("Username must be 3–30 characters.");
-      }
-
-      // Only letters, numbers and underscores
-      if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-        throw new Error(
-          "Username can only contain letters, numbers, and underscores."
-        );
-      }
-
+      // Delegates to the shared validateUsername utility (same logic as Mongoose).
+      // Returns null on success, or an error message string on failure.
+      const err = validateUsername(value);
+      if (err) throw new Error(err);
       return true;
     }),
 

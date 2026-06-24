@@ -7,6 +7,7 @@
 
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const { RESERVED_ALLOWED } = require("../utils/constants");
 
 const userSchema = new mongoose.Schema(
   {
@@ -17,12 +18,25 @@ const userSchema = new mongoose.Schema(
       required: [true, "Username is required"],
       unique: true,
       trim: true,
-      minlength: [3, "Username must be at least 3 characters"],
-      maxlength: [30, "Username cannot exceed 30 characters"],
-      match: [
-        /^[a-zA-Z0-9_]+$/,
-        "Username can only contain letters, numbers, and underscores",
+      // Custom validator: reserved usernames bypass the 3-char minimum.
+      // Normal usernames must be 3–30 chars; reserved ones are allowed regardless.
+      validate: [
+        {
+          validator: function (v) {
+            const lower = v.toLowerCase().trim();
+            if (RESERVED_ALLOWED.includes(lower)) return true;
+            return v.length >= 3 && v.length <= 30;
+          },
+          message: "Username must be 3–30 characters.",
+        },
+        {
+          validator: function (v) {
+            return /^[a-zA-Z0-9_]+$/.test(v);
+          },
+          message: "Username can only contain letters, numbers, and underscores.",
+        },
       ],
+      maxlength: [30, "Username cannot exceed 30 characters"],
     },
 
     email: {
@@ -52,6 +66,14 @@ const userSchema = new mongoose.Schema(
       type: String,
       maxlength: [150, "Bio cannot exceed 150 characters"],
       default: "",
+    },
+
+    // ── Role ─────────────────────────────────────────────────────────────────
+
+    role: {
+      type: String,
+      enum: ["user", "admin", "owner"],
+      default: "user",
     },
 
     // ── Status ───────────────────────────────────────────────────────────────
@@ -112,6 +134,7 @@ userSchema.methods.toPublicProfile = function () {
     email: this.email,
     avatar: this.avatar,
     bio: this.bio,
+    role: this.role,
     isOnline: this.isOnline,
     lastSeen: this.lastSeen,
     createdAt: this.createdAt,
